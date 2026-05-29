@@ -272,8 +272,8 @@ async def t_list_circuits(provider: str | None = None, limit: int = 25) -> dict[
 
 
 async def t_get_site_contacts(site: str) -> dict[str, Any]:
-    # NetBox stores contact assignments per object; for the demo we query
-    # tenancy/contact-assignments with object_type=dcim.site + the site id.
+    # NetBox contact-assignments returns the contact as a NestedContact (id+display only).
+    # Need a follow-up GET on /tenancy/contacts/{id}/ to get email + phone.
     site_resp = await _get("/api/dcim/sites/", {"slug": site, "limit": 1})
     if not site_resp.get("results"):
         return {"error": f"Site '{site}' not found"}
@@ -285,12 +285,19 @@ async def t_get_site_contacts(site: str) -> dict[str, Any]:
     )
     contacts = []
     for a in asn_resp.get("results", []):
-        c = a.get("contact", {})
+        contact_id = (a.get("contact") or {}).get("id")
+        role_display = (a.get("role") or {}).get("display")
+        if not contact_id:
+            continue
+        try:
+            full = await _get(f"/api/tenancy/contacts/{contact_id}/")
+        except Exception:
+            continue
         contacts.append({
-            "name": c.get("name"),
-            "role": (a.get("role") or {}).get("display"),
-            "email": c.get("email"),
-            "phone": c.get("phone"),
+            "name":  full.get("name"),
+            "role":  role_display,
+            "email": full.get("email"),
+            "phone": full.get("phone"),
         })
     return {"site": site_name, "contacts": contacts}
 
