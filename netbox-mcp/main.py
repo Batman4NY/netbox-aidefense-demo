@@ -54,12 +54,12 @@ TOOLS_SPEC: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "netbox_list_devices",
-            "description": "List network devices, optionally filtered by site slug and/or role slug. Returns name, model, status, primary IP.",
+            "description": "List network devices, optionally filtered by site and/or role. Returns name, model, status, primary IP. Note: NetBox uses 'role' for the device's function (core/distribution/access/edge/wireless) — switches, routers, and firewalls are all device TYPES, not roles. To list 'switches' just filter by site and the tool returns every device.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "site": {"type": "string", "description": "Site slug, e.g. 'dc-1-atl'"},
-                    "role": {"type": "string", "description": "Device role slug, e.g. 'core', 'access', 'edge'"},
+                    "site": {"type": "string", "description": "Site slug. Available: dc-1-atl, dc-2-rtp, branch-sjc, branch-ams"},
+                    "role": {"type": "string", "enum": ["core", "distribution", "access", "edge", "wireless"], "description": "Device functional role. ONLY these exact values are valid."},
                     "limit": {"type": "integer", "default": 25, "minimum": 1, "maximum": 100},
                 },
             },
@@ -159,7 +159,18 @@ async def call_tool(call: ToolCall) -> dict[str, Any]:
     try:
         result = await impl(**call.arguments)
     except httpx.HTTPStatusError as e:
-        raise HTTPException(status_code=502, detail=f"NetBox returned {e.response.status_code}: {e.response.text[:200]}")
+        # Return as a result with error rather than HTTP error so the LLM
+        # can react gracefully (e.g. retry with a different role value)
+        # instead of treating it as infrastructure failure.
+        return {
+            "tool": call.name,
+            "result": {
+                "error": f"netbox_invalid_query",
+                "status": e.response.status_code,
+                "detail": e.response.text[:300],
+                "hint": "Re-check the tool parameters against the schema (esp. enum values).",
+            },
+        }
     except Exception as e:
         log.exception(f"Tool {call.name} crashed")
         raise HTTPException(status_code=500, detail=f"Tool {call.name} error: {e}")
