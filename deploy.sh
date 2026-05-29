@@ -83,9 +83,9 @@ ensure_secret() {
   if [ -z "$v" ] || $ROTATE; then
     v=$($generator)
     bao_put_field "$path" "$field" "$v"
-    echo "  generated $path:$field"
+    echo "  generated $path:$field" >&2   # diagnostic → stderr, don't pollute return value
   fi
-  echo "$v"
+  printf '%s' "$v"                       # no trailing newline
 }
 
 echo "== Resolving secrets via OpenBao =="
