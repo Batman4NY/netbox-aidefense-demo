@@ -43,16 +43,20 @@ def wait_for_netbox(retries: int = 30) -> None:
 
 
 def get_or_create(endpoint: str, lookup: dict, payload: dict | None = None) -> dict:
-    """Find by lookup keys; if absent, POST payload. Return the object."""
+    """GET filter via `lookup` (use `_id` suffix for FK-by-id NetBox filters);
+    if no match, POST merge of (lookup minus `_id`-suffix keys) + `payload`."""
     r = client.get(endpoint, params={**lookup, "limit": 1})
-    r.raise_for_status()
+    if r.status_code != 200:
+        log.error(f"Lookup failed {endpoint} params={lookup}: {r.status_code} {r.text[:300]}")
+        r.raise_for_status()
     results = r.json().get("results", [])
     if results:
         return results[0]
-    body = {**lookup, **(payload or {})}
+    lookup_clean = {k: v for k, v in lookup.items() if not k.endswith("_id")}
+    body = {**lookup_clean, **(payload or {})}
     r = client.post(endpoint, json=body)
     if r.status_code not in (200, 201):
-        log.error(f"Create failed {endpoint}: {r.status_code} {r.text[:300]}")
+        log.error(f"Create failed {endpoint} body={body}: {r.status_code} {r.text[:300]}")
         r.raise_for_status()
     obj = r.json()
     log.info(f"Created {endpoint} → {obj.get('display') or obj.get('name')}")
@@ -78,8 +82,8 @@ def main() -> None:
     for model, slug, part, u in DEVICE_TYPES:
         dt_by_slug[slug] = get_or_create(
             "/api/dcim/device-types/",
-            {"slug": slug, "manufacturer": cisco["id"]},
-            {"model": model, "part_number": part, "u_height": u},
+            {"slug": slug, "manufacturer_id": cisco["id"]},
+            {"manufacturer": cisco["id"], "model": model, "part_number": part, "u_height": u},
         )
 
     # ── Device roles ────────────────────────────────────────────────
