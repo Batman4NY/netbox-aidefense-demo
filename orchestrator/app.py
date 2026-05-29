@@ -164,7 +164,14 @@ async def chat(req: ChatRequest, request: Request):
                         temperature=0.2,
                         max_tokens=1024,
                     )
-                    msg = completion.choices[0].message
+                    choice = completion.choices[0]
+                    msg = choice.message
+                    log.info(
+                        f"NIM hop={hop} attempt={attempt} finish={choice.finish_reason} "
+                        f"tool_calls={len(msg.tool_calls) if msg.tool_calls else 0} "
+                        f"content_len={len(msg.content or '')} "
+                        f"usage={getattr(completion, 'usage', None)}"
+                    )
                     if msg.tool_calls or (msg.content and msg.content.strip()):
                         break
                     log.warning(f"Empty completion (attempt {attempt+1}), retrying...")
