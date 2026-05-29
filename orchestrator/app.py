@@ -45,7 +45,9 @@ GATE_OUTPUT = os.environ.get("GATE_OUTPUT_ENABLED", "true").lower() == "true"
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s orch %(message)s")
 log = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """You are NetOps Assistant, a chatbot for a network operations team that uses NetBox as the source of truth for infrastructure.
+SYSTEM_PROMPT = """detailed thinking off
+
+You are NetOps Assistant, a chatbot for a network operations team that uses NetBox as the source of truth for infrastructure.
 
 You have access to NetBox tools for querying devices, sites, IP prefixes, circuits, and contacts. When asked about infrastructure:
 - ALWAYS use a tool rather than guessing
