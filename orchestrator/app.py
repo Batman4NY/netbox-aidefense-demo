@@ -172,7 +172,14 @@ async def chat(req: ChatRequest, request: Request):
 
                 if not msg.tool_calls:
                     # Final answer ready
-                    final = msg.content or ""
+                    final = (msg.content or "").strip()
+                    if not final:
+                        # Super-class Nemotron with detailed-thinking-off occasionally returns
+                        # nothing at all. Surface as an error rather than display blank.
+                        log.warning(f"Empty completion from {NIM_MODEL} (hop={hop}). Suggesting retry.")
+                        yield sse("error", {"message": f"Model {NIM_MODEL} returned an empty response. This happens occasionally with the Super-class model — please retry or rephrase."})
+                        yield sse("turn_end", {"reason": "empty_response"})
+                        return
 
                     # ---- GATE 3: output ----
                     yield sse("gate_start", {"where": "output", "n": 1, "content": final[:200]})
