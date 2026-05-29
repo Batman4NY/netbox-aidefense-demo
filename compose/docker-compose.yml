@@ -1,0 +1,197 @@
+name: aidefense-demo
+
+# All images selected for arm64 compatibility (cisco-web-1-arm is OCI Ampere A1).
+# Internal services on the `demo` network; only caddy publishes 80/443.
+
+x-netbox-common: &netbox-common
+  image: netboxcommunity/netbox:${NETBOX_VERSION}
+  environment:
+    DB_NAME: ${POSTGRES_DB}
+    DB_USER: ${POSTGRES_USER}
+    DB_PASSWORD: ${POSTGRES_PASSWORD}
+    DB_HOST: postgres
+    DB_WAIT_DEBUG: "1"
+    REDIS_HOST: redis-queue
+    REDIS_PORT: "6379"
+    REDIS_PASSWORD: ${REDIS_PASSWORD}
+    REDIS_DATABASE: "0"
+    REDIS_SSL: "false"
+    REDIS_CACHE_HOST: redis-cache
+    REDIS_CACHE_PORT: "6379"
+    REDIS_CACHE_PASSWORD: ${REDIS_CACHE_PASSWORD}
+    REDIS_CACHE_DATABASE: "1"
+    REDIS_CACHE_SSL: "false"
+    SECRET_KEY: ${NETBOX_SECRET_KEY}
+    ALLOWED_HOSTS: "netbox ${DEMO_DOMAIN} localhost 127.0.0.1"
+    SUPERUSER_NAME: ${NETBOX_SUPERUSER_NAME}
+    SUPERUSER_EMAIL: ${NETBOX_SUPERUSER_EMAIL}
+    SUPERUSER_PASSWORD: ${NETBOX_SUPERUSER_PASSWORD}
+    SUPERUSER_API_TOKEN: ${NETBOX_API_TOKEN}
+    SKIP_SUPERUSER: "false"
+  volumes:
+    - netbox_media:/opt/netbox/netbox/media
+    - netbox_reports:/opt/netbox/netbox/reports
+    - netbox_scripts:/opt/netbox/netbox/scripts
+  networks: [demo]
+  restart: unless-stopped
+
+services:
+  caddy:
+    image: caddy:2.10-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ../caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      DEMO_DOMAIN: ${DEMO_DOMAIN}
+    networks: [demo]
+    restart: unless-stopped
+    depends_on: [orchestrator]
+
+  orchestrator:
+    build:
+      context: ../orchestrator
+    environment:
+      NIM_API_KEY: ${NIM_API_KEY}
+      NIM_BASE_URL: ${NIM_BASE_URL}
+      NIM_MODEL: ${NIM_MODEL}
+      AI_DEFENSE_MCP_URL: http://ai-defense-mcp:8200
+      NETBOX_MCP_URL: http://netbox-mcp:8210
+      GATE_INPUT_ENABLED: ${GATE_INPUT_ENABLED}
+      GATE_TOOL_ARGS_ENABLED: ${GATE_TOOL_ARGS_ENABLED}
+      GATE_OUTPUT_ENABLED: ${GATE_OUTPUT_ENABLED}
+      LOG_LEVEL: ${ORCHESTRATOR_LOG_LEVEL}
+    networks: [demo]
+    restart: unless-stopped
+    depends_on:
+      ai-defense-mcp: {condition: service_healthy}
+      netbox-mcp:     {condition: service_healthy}
+
+  ai-defense-mcp:
+    build:
+      context: ../ai-defense-mcp
+    environment:
+      AI_DEFENSE_API_KEY: ${AI_DEFENSE_API_KEY}
+      AI_DEFENSE_BASE_URL: ${AI_DEFENSE_BASE_URL}
+      AI_DEFENSE_MODEL_LABEL: ${AI_DEFENSE_MODEL_LABEL}
+    networks: [demo]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8200/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  netbox-mcp:
+    build:
+      context: ../netbox-mcp
+    environment:
+      NETBOX_URL: http://netbox:8080
+      NETBOX_API_TOKEN: ${NETBOX_API_TOKEN}
+    networks: [demo]
+    restart: unless-stopped
+    depends_on:
+      netbox: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8210/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  netbox:
+    <<: *netbox-common
+    depends_on:
+      postgres:    {condition: service_healthy}
+      redis-queue: {condition: service_healthy}
+      redis-cache: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/login/"]
+      interval: 20s
+      timeout: 8s
+      retries: 20
+      start_period: 90s
+
+  netbox-worker:
+    <<: *netbox-common
+    command:
+      - /opt/netbox/venv/bin/python
+      - /opt/netbox/netbox/manage.py
+      - rqworker
+    depends_on:
+      netbox: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "ps", "-eo", "comm", "|", "grep", "-q", "rqworker"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks: [demo]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis-queue:
+    image: redis:7-alpine
+    command: ["sh", "-c", "redis-server --requirepass $$REDIS_PASSWORD --appendonly yes"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    volumes:
+      - redis_queue_data:/data
+    networks: [demo]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a $$REDIS_PASSWORD ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis-cache:
+    image: redis:7-alpine
+    command: ["sh", "-c", "redis-server --requirepass $$REDIS_CACHE_PASSWORD"]
+    environment:
+      REDIS_CACHE_PASSWORD: ${REDIS_CACHE_PASSWORD}
+    networks: [demo]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a $$REDIS_CACHE_PASSWORD ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  seed:
+    build:
+      context: ../seed
+    environment:
+      NETBOX_URL: http://netbox:8080
+      NETBOX_API_TOKEN: ${NETBOX_API_TOKEN}
+    networks: [demo]
+    profiles: ["seed"]
+    depends_on:
+      netbox: {condition: service_healthy}
+
+networks:
+  demo:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:
+  postgres_data:
+  redis_queue_data:
+  netbox_media:
+  netbox_reports:
+  netbox_scripts:

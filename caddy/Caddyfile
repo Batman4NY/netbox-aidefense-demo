@@ -1,0 +1,43 @@
+{
+	email admin@uppernyack.com
+	# Auto HTTPS via Let's Encrypt tls-alpn-01 (works with DNS-only Cloudflare; no DNS API needed)
+}
+
+# Public demo surface
+{$DEMO_DOMAIN} {
+	encode zstd gzip
+
+	# Health probe (uptime checks)
+	handle_path /healthz {
+		respond "ok" 200
+	}
+
+	# Everything else → orchestrator (SSE-friendly)
+	reverse_proxy orchestrator:8000 {
+		flush_interval -1
+		header_up Host {host}
+		header_up X-Real-IP {remote_host}
+	}
+
+	# Brand-discipline: only Cisco AI Defense markers, no Salient cross-references
+	header {
+		X-Powered-By "Cisco AI Defense"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}
+
+# Bare IP / unknown host → drop (no info disclosure)
+:80 {
+	respond 404
+}
+:443 {
+	tls internal
+	respond 404
+}
