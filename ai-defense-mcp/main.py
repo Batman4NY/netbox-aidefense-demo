@@ -8,7 +8,7 @@ Three endpoints fired by the orchestrator at three points in every chat turn:
 
 Underlying API:
   POST {base_url}/api/v1/inspect/chat
-  Auth: Bearer <inspection-api-key>
+  Auth header: X-Cisco-AI-Defense-API-Key: <inspection-api-key>
   Body: {"messages": [{"role": "user"|"assistant", "content": "..."}], "model": "<label>"}
   Response:
     {"action": "allow"|"block",
@@ -78,7 +78,7 @@ async def _inspect(content: str, role: str, source_ip: str | None, user_id: str 
         r = await client.post(
             INSPECT_URL,
             json=payload,
-            headers={"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"},
+            headers={"X-Cisco-AI-Defense-API-Key": API_KEY, "Content-Type": "application/json"},
         )
     except httpx.RequestError as e:
         log.error(f"AI Defense API request failed: {e}")
@@ -90,12 +90,38 @@ async def _inspect(content: str, role: str, source_ip: str | None, user_id: str 
         raise HTTPException(status_code=502, detail=f"AI Defense API status {r.status_code}: {r.text[:200]}")
 
     data = r.json()
+    # API returns: action ("Allow"|"Block"), is_safe, severity, classifications[],
+    # attack_technique, detected_pii[], processed_rules[], explanation.
+    action_raw = (data.get("action") or "allow").lower()
+    classifications = data.get("classifications") or []
+    triggered = [pr for pr in (data.get("processed_rules") or []) if pr.get("classification") != "NONE_VIOLATION"]
+    attack = data.get("attack_technique") or ""
+    pii = data.get("detected_pii") or []
+
+    # Category: prefer first classification, fall back to triggered rule name, then attack technique
+    category = None
+    if classifications:
+        category = str(classifications[0]).lower().replace(" ", "_")
+    elif triggered:
+        category = triggered[0].get("rule_name", "").lower().replace(" ", "_") or None
+    elif attack and attack != "NONE_ATTACK_TECHNIQUE":
+        category = attack.lower()
+
+    # Subcategory: first detected PII type, OR first triggered rule's entity type
+    subcategory = None
+    if pii and isinstance(pii[0], dict):
+        subcategory = pii[0].get("type") or pii[0].get("entity_type")
+    elif pii:
+        subcategory = str(pii[0])
+    elif triggered and triggered[0].get("entity_types"):
+        subcategory = triggered[0]["entity_types"][0]
+
     return ScanResult(
-        action=data.get("action", "allow"),
-        category=data.get("category"),
-        subcategory=data.get("subcategory"),
-        message=data.get("message"),
-        request_id=data.get("request_id"),
+        action=action_raw,
+        category=category,
+        subcategory=subcategory,
+        message=data.get("explanation") or data.get("message"),
+        request_id=data.get("event_id") or data.get("client_transaction_id"),
         latency_ms=latency_ms,
         raw=data,
     )
