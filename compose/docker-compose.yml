@@ -80,7 +80,7 @@ services:
     networks: [demo]
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8200/health"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8200/health | grep -q ok"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -96,7 +96,7 @@ services:
     depends_on:
       netbox: {condition: service_healthy}
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8210/health"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8210/health | grep -q ok"]
       interval: 15s
       timeout: 5s
       retries: 5
