@@ -55,7 +55,9 @@ if $DOWN; then
   exit 0
 fi
 if $SEED; then
-  ssh_cmd "cd $REMOTE_PATH/compose && sudo docker compose --profile seed run --rm seed"
+  echo "== Rsync seed/ to remote so we run latest seed code =="
+  rsync -az -e "ssh $SSH_OPTS" --exclude '__pycache__' ./seed/ "$REMOTE_USER@$REMOTE_HOST:$REMOTE_PATH/seed/"
+  ssh_cmd "cd $REMOTE_PATH/compose && sudo docker compose --profile seed build seed && sudo docker compose --profile seed run --rm seed"
   exit 0
 fi
 
