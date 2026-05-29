@@ -106,9 +106,13 @@ def sse(event: str, data: dict[str, Any]) -> dict[str, str]:
 # ----------------------------------------------------------------------------
 # Routes
 # ----------------------------------------------------------------------------
+import time
+BUILD_ID = str(int(time.time()))  # cache-bust static assets on each container restart
+
+
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request, "model": NIM_MODEL})
+    return templates.TemplateResponse("index.html", {"request": request, "model": NIM_MODEL, "build_id": BUILD_ID})
 
 
 @app.get("/healthz")
