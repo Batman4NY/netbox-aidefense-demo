@@ -41,9 +41,10 @@ form.addEventListener('submit', async (e) => {
     while (true) {
       const { value, done } = await reader.read();
       if (done) break;
-      buf += decoder.decode(value, { stream: true });
+      // sse-starlette sends CRLF — normalize to LF so the parser is simple
+      buf += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n');
 
-      // Parse SSE: event: x\ndata: y\n\n
+      // SSE events are separated by a blank line (\n\n after normalization)
       let i;
       while ((i = buf.indexOf('\n\n')) !== -1) {
         const chunk = buf.slice(0, i);
