@@ -115,7 +115,7 @@ AI_DEFENSE_MODEL_LABEL=aidefense-demo
 
 NIM_API_KEY=$NIM_KEY
 NIM_BASE_URL=https://integrate.api.nvidia.com/v1
-NIM_MODEL=nvidia/llama-3.3-nemotron-super-49b-v1.5
+NIM_MODEL=mistralai/mistral-nemotron
 
 NETBOX_VERSION=v4.4-3.4.0
 NETBOX_SECRET_KEY=$NETBOX_SECRET_KEY

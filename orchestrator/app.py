@@ -45,9 +45,7 @@ GATE_OUTPUT = os.environ.get("GATE_OUTPUT_ENABLED", "true").lower() == "true"
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s orch %(message)s")
 log = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """detailed thinking off
-
-You are NetOps Assistant, a chatbot for a network operations team that uses NetBox as the source of truth for infrastructure.
+SYSTEM_PROMPT = """You are NetOps Assistant, a chatbot for a network operations team that uses NetBox as the source of truth for infrastructure.
 
 You have access to NetBox tools for querying devices, sites, IP prefixes, circuits, and contacts. When asked about infrastructure:
 - ALWAYS use a tool rather than guessing
@@ -151,16 +149,23 @@ async def chat(req: ChatRequest, request: Request):
 
             for hop in range(5):  # cap tool-loop depth
                 yield sse("llm_call_start", {"hop": hop, "model": NIM_MODEL})
-                completion = await nim_client.chat.completions.create(
-                    model=NIM_MODEL,
-                    messages=messages,
-                    tools=tools,
-                    tool_choice="auto",
-                    temperature=0.2,
-                    max_tokens=1024,
-                )
-                choice = completion.choices[0]
-                msg = choice.message
+
+                # One transparent retry on empty completions — free-tier NIM
+                # occasionally returns content='' AND tool_calls=[] without erroring.
+                msg = None
+                for attempt in range(2):
+                    completion = await nim_client.chat.completions.create(
+                        model=NIM_MODEL,
+                        messages=messages,
+                        tools=tools,
+                        tool_choice="auto",
+                        temperature=0.2,
+                        max_tokens=1024,
+                    )
+                    msg = completion.choices[0].message
+                    if msg.tool_calls or (msg.content and msg.content.strip()):
+                        break
+                    log.warning(f"Empty completion (attempt {attempt+1}), retrying...")
                 # Append assistant message (may include tool_calls)
                 assistant_msg: dict[str, Any] = {"role": "assistant", "content": msg.content or ""}
                 if msg.tool_calls:
