@@ -147,8 +147,11 @@ async def scan_tool_args(req: ScanRequest) -> ScanResult:
 
 @app.post("/scan/output", response_model=ScanResult)
 async def scan_output(req: ScanRequest) -> ScanResult:
-    """Scan an assistant message BEFORE it's displayed. Fires output policy (2 rules — PII leakage etc)."""
-    return await _inspect(req.content, role="assistant", source_ip=req.source_ip, user_id=req.user_id)
+    """Scan an assistant message BEFORE display. Deliberately uses role='user' so
+    the FULL 13-rule input policy fires on outbound content (defense-in-depth).
+    The default assistant/output policy only enables 2 rules with PII allowed —
+    inadequate for protecting NetBox-sourced credentials/contact PII."""
+    return await _inspect(req.content, role="user", source_ip=req.source_ip, user_id=req.user_id)
 
 
 @app.post("/scan", response_model=ScanResult)
