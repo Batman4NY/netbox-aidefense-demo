@@ -100,6 +100,11 @@ AID_KEY=$(bao_get infra/api/cisco-ai-defense key)
 NETBOX_SECRET_KEY=$(ensure_secret infra/api/netbox-demo secret_key rand50)
 NETBOX_SUPER_PW=$(ensure_secret infra/api/netbox-demo superuser_password rand50)
 NETBOX_API_TOKEN=$(ensure_secret infra/api/netbox-demo api_token rand_token)
+# Read-only token for netbox-mcp — created manually in NetBox with write_enabled=false.
+# If the key isn't in OpenBao yet, the MCP falls back to the superuser token (less safe).
+NETBOX_MCP_TOKEN_READONLY=$(bao_get infra/api/netbox-demo mcp_token_readonly)
+[ -z "$NETBOX_MCP_TOKEN_READONLY" ] && NETBOX_MCP_TOKEN_READONLY="$NETBOX_API_TOKEN" && \
+  echo "  ⚠ no RO token in vault — netbox-mcp will use superuser (run setup-mcp-readonly-token.sh)"
 PG_PW=$(ensure_secret infra/db/netbox-demo-pg password rand50)
 REDIS_PW=$(ensure_secret infra/db/netbox-demo-redis-queue password rand50)
 REDIS_CACHE_PW=$(ensure_secret infra/db/netbox-demo-redis-cache password rand50)
@@ -127,6 +132,7 @@ NETBOX_SUPERUSER_NAME=admin
 NETBOX_SUPERUSER_EMAIL=admin@aidefense-demo.local
 NETBOX_SUPERUSER_PASSWORD=$NETBOX_SUPER_PW
 NETBOX_API_TOKEN=$NETBOX_API_TOKEN
+NETBOX_MCP_TOKEN_READONLY=$NETBOX_MCP_TOKEN_READONLY
 
 POSTGRES_DB=netbox
 POSTGRES_USER=netbox

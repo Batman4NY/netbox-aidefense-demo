@@ -94,7 +94,11 @@ services:
       context: ../netbox-mcp
     environment:
       NETBOX_URL: http://netbox:8080
-      NETBOX_API_TOKEN: ${NETBOX_API_TOKEN}
+      # SECURITY: read-only token (write_enabled=false on the NetBox side).
+      # Even if the LLM proposes a destructive tool call AND it slips past the
+      # AI Defense tool-args gate, NetBox itself returns 403 — defense at the
+      # data layer, not just at the LLM layer.
+      NETBOX_API_TOKEN: ${NETBOX_MCP_TOKEN_READONLY}
     networks: [demo]
     restart: unless-stopped
     depends_on:

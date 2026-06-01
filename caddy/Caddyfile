@@ -19,12 +19,35 @@
 		header_up X-Real-IP {remote_host}
 	}
 
-	# Brand-discipline: only Cisco AI Defense markers, no Salient cross-references
+	# Brand-discipline: only Cisco AI Defense markers, no Salient cross-references.
+	# Security headers: defense-in-depth at the browser even if AI Defense or the
+	# orchestrator missed something. Lighthouse / SecurityHeaders.com A+ target.
 	header {
 		X-Powered-By "Cisco AI Defense"
-		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
 		X-Content-Type-Options "nosniff"
 		Referrer-Policy "strict-origin-when-cross-origin"
+
+		# CSP — pinned to the actual asset sources used by the demo UI:
+		#   script: self + Tailwind CDN + jsdelivr (marked.js); 'unsafe-inline' required
+		#          for the Tailwind config block and SSE inline handlers.
+		#   style:  self + Tailwind CDN; 'unsafe-inline' required for Tailwind-injected styles.
+		#   connect: self only — SSE chat endpoint is same-origin.
+		#   frame-ancestors: 'none' — no embedding (defense against clickjacking).
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+
+		# Clickjacking belt-and-suspenders alongside CSP frame-ancestors
+		X-Frame-Options "DENY"
+
+		# Disable every powerful browser API by default (camera/mic/geo/etc)
+		Permissions-Policy "accelerometer=(), ambient-light-sensor=(), autoplay=(), battery=(), camera=(), display-capture=(), document-domain=(), encrypted-media=(), execution-while-not-rendered=(), execution-while-out-of-viewport=(), fullscreen=(), geolocation=(), gyroscope=(), keyboard-map=(), magnetometer=(), microphone=(), midi=(), navigation-override=(), payment=(), picture-in-picture=(), publickey-credentials-get=(), screen-wake-lock=(), sync-xhr=(), usb=(), web-share=(), xr-spatial-tracking=()"
+
+		# Cross-origin isolation
+		Cross-Origin-Opener-Policy "same-origin"
+		Cross-Origin-Resource-Policy "same-origin"
+
+		# Hide server identity
+		-Server
 	}
 
 	log {
