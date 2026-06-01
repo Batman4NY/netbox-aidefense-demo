@@ -101,6 +101,7 @@ TOOLS_SPEC: list[dict[str, Any]] = [
                 "type": "object",
                 "properties": {
                     "provider": {"type": "string", "description": "Provider slug, e.g. 'lumen', 'att'"},
+                    "status":   {"type": "string", "enum": ["active", "planned", "decommissioning", "offline"], "description": "Circuit status filter"},
                     "limit": {"type": "integer", "default": 25, "minimum": 1, "maximum": 100},
                 },
             },
@@ -262,10 +263,10 @@ async def t_list_prefixes(site: str | None = None, tenant: str | None = None, li
     }
 
 
-async def t_list_circuits(provider: str | None = None, limit: int = 25) -> dict[str, Any]:
+async def t_list_circuits(provider: str | None = None, status: str | None = None, limit: int = 25) -> dict[str, Any]:
     params: dict[str, Any] = {"limit": limit}
-    if provider:
-        params["provider"] = provider
+    if provider: params["provider"] = provider
+    if status:   params["status"] = status
     data = await _get("/api/circuits/circuits/", params)
     return {
         "count": data.get("count", 0),
