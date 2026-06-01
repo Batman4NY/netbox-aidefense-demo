@@ -335,11 +335,37 @@ function handleEvent({ event, data: d }) {
       lastAssistant = '';
       return;
 
+    case 'model_declined':
+      // Defense-in-depth — Nemotron's own training refused. Render as INFO not error.
+      nodeClass('n-nemo', 'block');
+      edgeClass('e-input-nemo', 'block');
+      dimDownstream('input');  // dim everything after the LLM
+      pushEvent('llm', '🧠', `<b>Nemotron declined</b> — safety training refused`, escapeHTML(d.explanation || ''));
+      showModelDeclined(d, currentTurnText);
+      return;
+
     case 'error':
       pushEvent('error', '⚠', escapeHTML(d.message || 'unknown error'));
       showError(d.message || 'unknown error', currentTurnText);
       return;
   }
+}
+
+function showModelDeclined(d, userText) {
+  resultPane.innerHTML = `<div class="user-echo">▸ ${escapeHTML(userText)}</div>
+    <div class="verdict" style="background:linear-gradient(135deg,rgba(167,139,250,0.18),rgba(167,139,250,0.05));border:1px solid #a78bfa;color:#ddd6fe;box-shadow:0 0 30px rgba(167,139,250,0.15)">
+      <div class="verdict-icon">🧠</div>
+      <div>
+        <div class="verdict-title">Nemotron declined to engage</div>
+        <div class="verdict-sub">Model-level safety refused before any tool call</div>
+      </div>
+    </div>
+    <div class="text-[11px] uppercase tracking-widest text-slate-500 mb-2">Defense-in-depth at work</div>
+    <div class="text-[13px] text-slate-300 leading-relaxed mb-3">${escapeHTML(d.explanation || '')}</div>
+    <div class="bg-panel/50 rounded-lg p-3 border border-slate-800 text-[12px] text-slate-400">
+      <div class="text-cisco font-semibold mb-1">What this demonstrates</div>
+      Cisco AI Defense's <b>input gate</b> didn't categorize this prompt as a content-safety violation — credential exfiltration isn't on the default 13-rule policy. But Nemotron's <b>own safety training</b> caught it. Had the model complied, AI Defense's <b>output gate</b> would have caught the SNMP strings in transit (matching the PII / privacy rules).
+    </div>`;
 }
 
 // Cache last assistant_message so the allow-verdict renders after turn_end

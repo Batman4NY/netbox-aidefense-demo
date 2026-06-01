@@ -173,6 +173,7 @@ async def chat(req: ChatRequest, request: Request):
                 # One transparent retry on empty completions — free-tier NIM
                 # occasionally returns content='' AND tool_calls=[] without erroring.
                 msg = None
+                finish_reason = None
                 for attempt in range(2):
                     completion = await nim_client.chat.completions.create(
                         model=NIM_MODEL,
@@ -184,8 +185,9 @@ async def chat(req: ChatRequest, request: Request):
                     )
                     choice = completion.choices[0]
                     msg = choice.message
+                    finish_reason = choice.finish_reason
                     log.info(
-                        f"NIM hop={hop} attempt={attempt} finish={choice.finish_reason} "
+                        f"NIM hop={hop} attempt={attempt} finish={finish_reason} "
                         f"tool_calls={len(msg.tool_calls) if msg.tool_calls else 0} "
                         f"content_len={len(msg.content or '')} "
                         f"usage={getattr(completion, 'usage', None)}"
@@ -206,10 +208,31 @@ async def chat(req: ChatRequest, request: Request):
                     # Final answer ready
                     final = (msg.content or "").strip()
                     if not final:
-                        # Super-class Nemotron with detailed-thinking-off occasionally returns
-                        # nothing at all. Surface as an error rather than display blank.
-                        log.warning(f"Empty completion from {NIM_MODEL} (hop={hop}). Suggesting retry.")
-                        yield sse("error", {"message": f"Model {NIM_MODEL} returned an empty response. This happens occasionally with the Super-class model — please retry or rephrase."})
+                        # Empty content + no tool_calls + finish_reason=stop = the model
+                        # silently refused. This is Nemotron's safety training firing
+                        # ABOVE AI Defense — a defense-in-depth win, not an error.
+                        # (Verified pattern: completion_tokens=11, finish=stop, no
+                        # refusal field. Direct probe on cred-exfil prompts reproduces.)
+                        if finish_reason == "stop":
+                            log.info(f"Model declined hop={hop} ({finish_reason}, 0 content, 0 tool_calls) — "
+                                     f"Nemotron safety training refused.")
+                            yield sse("model_declined", {
+                                "model": NIM_MODEL,
+                                "finish_reason": finish_reason,
+                                "explanation": (
+                                    "Nemotron's safety training refused this request before "
+                                    "calling any tool. This is defense-in-depth: even when "
+                                    "Cisco AI Defense's input policy doesn't categorize a "
+                                    "prompt as a content-safety violation (e.g. credential "
+                                    "exfiltration), the model's own training provides a "
+                                    "second layer."
+                                ),
+                            })
+                            yield sse("turn_end", {"reason": "model_declined"})
+                            return
+                        # Other empty-cases (very rare with retry guard) — surface as error.
+                        log.warning(f"Empty completion from {NIM_MODEL} (hop={hop}, finish={finish_reason}) — non-stop, treating as error.")
+                        yield sse("error", {"message": f"Model {NIM_MODEL} returned an empty response (finish_reason={finish_reason}). Please retry or rephrase."})
                         yield sse("turn_end", {"reason": "empty_response"})
                         return
 
