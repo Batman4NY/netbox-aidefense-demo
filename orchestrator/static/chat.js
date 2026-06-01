@@ -26,19 +26,10 @@ form.addEventListener('submit', async (e) => {
   let turnEl = appendTurnContainer();
 
   try {
-    // Collect per-turn enabled_rules from the toggle panel.
-    // If ALL rules are checked, pass null = use AI Defense policy default.
-    // If any are unchecked, send the explicit list of enabled ones.
-    const allToggles = document.querySelectorAll('.rule-toggle');
-    const checked = [...document.querySelectorAll('.rule-toggle:checked')];
-    const enabled_rules = (allToggles.length && checked.length < allToggles.length)
-      ? checked.map(c => c.value)
-      : null;
-
     const resp = await fetch('/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text, history: history, session_id: sessionId, enabled_rules }),
+      body: JSON.stringify({ message: text, history: history, session_id: sessionId }),
     });
     if (!resp.ok || !resp.body) throw new Error('chat request failed: ' + resp.status);
 

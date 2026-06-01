@@ -106,10 +106,14 @@ class ScanResult(BaseModel):
 
 
 def _extract_violations(data: dict[str, Any]) -> list[Violation]:
-    """Extract every triggered rule, not just the first.
-    Pattern backported from cognisphere's processInspectionResults()."""
+    """Extract triggered rules. AI Defense returns:
+       - `rules`           = rules that FIRED (this is what we want)
+       - `processed_rules` = ALL rules with status (mostly NONE_VIOLATION on allows)
+    Cognisphere's processInspectionResults() reads `rules` — verified by
+    inspecting an actual block response: rules[].classification is non-NONE,
+    processed_rules[].classification is mostly NONE_VIOLATION."""
     out: list[Violation] = []
-    for r in (data.get("processed_rules") or []):
+    for r in (data.get("rules") or []):
         cls = r.get("classification")
         if not cls or cls == "NONE_VIOLATION":
             continue
@@ -126,10 +130,18 @@ async def _inspect(content: str, role: str, source_ip: str | None,
     if not content or not content.strip():
         return ScanResult(is_safe=True, action="allow", message="empty content, skipped", latency_ms=0)
 
+    # NOTE on enabled_rules: AI Defense's API expects a protobuf-typed list here,
+    # NOT free-form rule-name strings. Passing ["PII","PCI"] returns 400 proto-syntax-error.
+    # Until the accepted format is documented, we always send [] (use the connection's
+    # attached policy as configured in the Security Cloud Control console).
+    # The `enabled_rules` parameter on this function is reserved for when AI Defense
+    # ships a working schema, OR for use with self-hosted AI Defense gateways that
+    # accept the older name-based format.
+    rules_to_send: list = enabled_rules if enabled_rules else DEFAULT_RULES if DEFAULT_RULES else []
     payload: dict[str, Any] = {
         "messages": [{"role": role, "content": content}],
         "model": MODEL_LABEL,
-        "config": {"enabled_rules": enabled_rules if enabled_rules is not None else DEFAULT_RULES},
+        "config": {"enabled_rules": rules_to_send},
         "metadata": {},
     }
     if source_ip: payload["source_ip"] = source_ip

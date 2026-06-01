@@ -92,25 +92,10 @@ tailwind.config = {
       </ol>
     </div>
 
-    <details class="mt-6 text-xs">
-      <summary class="cursor-pointer text-slate-400 hover:text-ciscoblue uppercase tracking-wider">Rule toggle (advanced)</summary>
-      <div class="mt-2 space-y-1 text-slate-400 bg-panel rounded p-3 border border-slate-800">
-        <p class="mb-2 text-slate-500">Untick to disable a rule for the NEXT turn. Empty = use AI Defense policy default.</p>
-        <label class="flex items-center gap-2"><input type="checkbox" class="rule-toggle" value="Prompt Injection" checked> Prompt Injection</label>
-        <label class="flex items-center gap-2"><input type="checkbox" class="rule-toggle" value="PII" checked> PII</label>
-        <label class="flex items-center gap-2"><input type="checkbox" class="rule-toggle" value="PCI" checked> PCI</label>
-        <label class="flex items-center gap-2"><input type="checkbox" class="rule-toggle" value="PHI" checked> PHI</label>
-        <label class="flex items-center gap-2"><input type="checkbox" class="rule-toggle" value="Toxicity" checked> Toxicity</label>
-        <label class="flex items-center gap-2"><input type="checkbox" class="rule-toggle" value="Harassment" checked> Harassment</label>
-        <label class="flex items-center gap-2"><input type="checkbox" class="rule-toggle" value="Hate Speech" checked> Hate Speech</label>
-        <label class="flex items-center gap-2"><input type="checkbox" class="rule-toggle" value="Profanity" checked> Profanity</label>
-        <label class="flex items-center gap-2"><input type="checkbox" class="rule-toggle" value="Sexual Content &amp; Exploitation" checked> Sexual Content</label>
-        <label class="flex items-center gap-2"><input type="checkbox" class="rule-toggle" value="Violence &amp; Public Safety Threats" checked> Violence</label>
-        <label class="flex items-center gap-2"><input type="checkbox" class="rule-toggle" value="Social Division &amp; Polarization" checked> Social Division</label>
-        <label class="flex items-center gap-2"><input type="checkbox" class="rule-toggle" value="Malicious URL Detection" checked> Malicious URL</label>
-        <label class="flex items-center gap-2"><input type="checkbox" class="rule-toggle" value="General Harms" checked> General Harms</label>
-      </div>
-    </details>
+    <!-- Rule toggle removed — AI Defense's enabled_rules API expects a protobuf-typed
+         schema, not free-form rule names. Returns 400 on string lists. Re-enable when
+         Cisco publishes the accepted format. To change effective rules today, edit the
+         Runtime Policy attached to the `epoch-test` connection in Security Cloud Control. -->
   </aside>
 
   <!-- Chat -->
