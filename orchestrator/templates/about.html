@@ -1,0 +1,589 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Architecture — Cisco AI Defense + NetBox + Nemotron</title>
+<meta name="description" content="Detailed architecture walkthrough — every component, why it's here, and how the wires connect." />
+
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="/static/style.css?v={{ build_id }}">
+<style>
+  /* About-page specific */
+  .anchor { scroll-margin-top: 80px; }
+  .section-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #049fd9;
+    letter-spacing: 0.2em;
+    font-weight: 600;
+  }
+  .section-h {
+    font-size: 28px;
+    font-weight: 700;
+    color: #fff;
+    margin-top: 6px;
+    margin-bottom: 4px;
+    letter-spacing: -0.01em;
+  }
+  .section-sub {
+    color: #94a3b8;
+    font-size: 14px;
+    margin-bottom: 24px;
+  }
+  .kv { display: grid; grid-template-columns: 180px 1fr; gap: 10px 16px; margin: 16px 0; font-size: 13px; }
+  .kv dt { color: #6b7280; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+  .kv dd { color: #cbd5e1; margin: 0; }
+  .kv dd code { background: #0a0e1a; color: #22d3ee; padding: 1px 6px; border-radius: 3px; font-size: 12px; }
+  .lead { font-size: 15px; line-height: 1.6; color: #cbd5e1; }
+  .nav-anchor { color: #6b7280; transition: color 0.15s; display: block; padding: 6px 0; font-size: 12px; }
+  .nav-anchor:hover { color: #049fd9; }
+  .nav-anchor.active { color: #049fd9; }
+  .why-box {
+    background: linear-gradient(135deg, rgba(4,159,217,0.06), rgba(4,159,217,0.02));
+    border-left: 3px solid #049fd9;
+    padding: 12px 16px;
+    border-radius: 6px;
+    margin: 14px 0;
+    font-size: 13px;
+    color: #cbd5e1;
+  }
+  .why-box strong { color: #049fd9; }
+  pre.code {
+    background: #04050a;
+    padding: 14px 16px;
+    border-radius: 8px;
+    border: 1px solid #1e293b;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: #cbd5e1;
+    overflow-x: auto;
+    margin: 12px 0;
+  }
+  pre.code .c { color: #6b7280; }
+  pre.code .k { color: #049fd9; }
+  pre.code .s { color: #6ee7b7; }
+  table.spec {
+    width: 100%; border-collapse: collapse; font-size: 13px;
+    margin: 12px 0;
+  }
+  table.spec th, table.spec td {
+    border: 1px solid #1e293b;
+    padding: 8px 12px;
+    text-align: left;
+  }
+  table.spec th {
+    background: rgba(4,159,217,0.08);
+    color: #049fd9;
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  table.spec td code { background: #0a0e1a; color: #22d3ee; padding: 1px 5px; border-radius: 3px; font-size: 11px; font-family: 'JetBrains Mono', monospace; }
+  .pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin-right: 6px;
+    margin-bottom: 4px;
+  }
+  .pill-cisco { background: #0d274d; color: #049fd9; border: 1px solid #049fd9; }
+  .pill-green { background: #14532d; color: #6ee7b7; border: 1px solid #10b981; }
+  .pill-purple { background: #4c1d95; color: #ddd6fe; border: 1px solid #a78bfa; }
+  .pill-amber { background: #78350f; color: #fde68a; border: 1px solid #f59e0b; }
+</style>
+<script>
+tailwind.config = {
+  theme: { extend: { colors: {
+    cisco:'#049fd9', ciscoDark:'#0d274d', bg:'#000000', ink:'#04050a',
+    panel:'#0a0e1a', panelHi:'#11182b', muted:'#6b7280',
+    accent:'#10b981', danger:'#ef4444', warn:'#f59e0b',
+  }, fontFamily: { sans:['Inter','system-ui'], mono:['JetBrains Mono','ui-monospace'] }}}
+}
+</script>
+</head>
+
+<body class="bg-bg text-slate-100 font-sans antialiased min-h-screen">
+
+<!-- Grid background -->
+<div class="fixed inset-0 pointer-events-none opacity-[0.05]"
+     style="background-image:linear-gradient(rgba(4,159,217,.6) 1px,transparent 1px),linear-gradient(90deg,rgba(4,159,217,.6) 1px,transparent 1px);background-size:48px 48px"></div>
+
+<!-- Header -->
+<header class="relative z-10 border-b border-slate-800/60 bg-bg/95 backdrop-blur px-6 py-3 flex items-center justify-between sticky top-0">
+  <a href="/" class="flex items-center gap-3 hover:opacity-80 transition">
+    <div class="relative">
+      <div class="absolute inset-0 bg-cisco/30 blur-xl"></div>
+      <svg class="relative" width="32" height="32" viewBox="0 0 32 32">
+        <rect width="32" height="32" rx="6" fill="#049fd9"/>
+        <path d="M9 11v10M13 8v16M17 11v10M21 14v4M25 11v10" stroke="white" stroke-width="2.4" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div>
+      <div class="font-bold text-lg tracking-tight leading-none">Cisco AI Defense</div>
+      <div class="text-[10px] text-cisco uppercase tracking-widest mt-0.5">Architecture · About</div>
+    </div>
+  </a>
+  <a href="/" class="text-slate-400 hover:text-cisco transition text-[11px] uppercase tracking-widest">← Back to demo</a>
+</header>
+
+<main class="relative z-10 max-w-6xl mx-auto px-6 py-12 grid grid-cols-12 gap-8">
+
+  <!-- Sticky sidebar nav -->
+  <aside class="col-span-3 sticky top-20 self-start h-fit hidden md:block">
+    <div class="text-[10px] uppercase tracking-widest text-slate-500 mb-3">Sections</div>
+    <nav class="border-l border-slate-800 pl-4">
+      <a href="#overview"    class="nav-anchor">01 · Overview</a>
+      <a href="#flow"        class="nav-anchor">02 · The 3-point flow</a>
+      <a href="#cisco"       class="nav-anchor">03 · Cisco AI Defense</a>
+      <a href="#nvidia"      class="nav-anchor">04 · NVIDIA NIM + Nemotron</a>
+      <a href="#oci"         class="nav-anchor">05 · OCI infrastructure</a>
+      <a href="#cloudflare"  class="nav-anchor">06 · Cloudflare DNS</a>
+      <a href="#netbox"      class="nav-anchor">07 · NetBox data</a>
+      <a href="#orchestrator"class="nav-anchor">08 · Orchestrator + MCPs</a>
+      <a href="#security"    class="nav-anchor">09 · Secrets &amp; TLS</a>
+      <a href="#bom"         class="nav-anchor">10 · Bill of materials</a>
+    </nav>
+  </aside>
+
+  <!-- Main content -->
+  <article class="col-span-12 md:col-span-9 space-y-16">
+
+    <!-- HERO -->
+    <section id="overview" class="anchor">
+      <div class="section-num">01 / OVERVIEW</div>
+      <h1 class="section-h">A Cisco-branded AI Defense reference architecture</h1>
+      <p class="section-sub">Built for Cisco SE customer demos. Mirrors a real customer's stack: NetBox + Nemotron-driven chatbot, with Cisco AI Defense applied at three points.</p>
+
+      <p class="lead">
+        This demo is a deployable reference architecture for customers building AI-assisted operations tooling
+        over Cisco / network infrastructure. Every piece is something the customer can stand up themselves the
+        same day, using accounts and entitlements they already have. The implementation total is roughly 600
+        lines of Python plus a small SVG-driven UI.
+      </p>
+
+      <div class="why-box">
+        <strong>The story we're telling:</strong> Cisco AI Defense is a control plane for LLM safety, not a content filter.
+        It sits at <em>every</em> untrusted boundary in an agentic AI architecture — input, tool arguments, output —
+        and gates each one against a policy you control. The demo shows the same Inspection API doing three different
+        jobs in one turn.
+      </div>
+
+      <table class="spec">
+        <tr><th>Live URL</th><td><code>https://aidefense-demo.uppernyack.com</code></td></tr>
+        <tr><th>LLM</th><td><code>{{ model }}</code></td></tr>
+        <tr><th>Defense</th><td>Cisco AI Defense Inspection API (US region)</td></tr>
+        <tr><th>Data source</th><td>NetBox 4.4 with 58 Cisco devices across 6 sites</td></tr>
+        <tr><th>Compute</th><td>OCI Always-Free Ampere A1.Flex ARM (2 OCPU / 12 GB)</td></tr>
+        <tr><th>Monthly cost</th><td><code>$0</code> — every component uses free-tier accounts</td></tr>
+      </table>
+    </section>
+
+    <!-- FLOW -->
+    <section id="flow" class="anchor">
+      <div class="section-num">02 / THE 3-POINT FLOW</div>
+      <h2 class="section-h">Every turn fires AI Defense three times</h2>
+      <p class="section-sub">Input · Tool-args · Output — three different inspection contexts, one API, one policy.</p>
+
+      <p class="lead">
+        A traditional content-filter sits in front of the LLM and stops bad <em>prompts</em>. That covers about a
+        third of the OWASP LLM Top-10. The other two-thirds — destructive tool calls, sensitive-data egress,
+        excessive agency — are caught <em>after</em> the model has already decided to act. Three-point gating
+        moves inspection to the boundary where each risk class actually lives.
+      </p>
+
+      <table class="spec">
+        <tr><th>Gate</th><th>What it sees</th><th>Catches</th><th>Latency</th></tr>
+        <tr><td><b>Input</b></td><td>Raw user prompt before LLM receives it</td><td>Prompt injection, PII attempts, jailbreak</td><td>140-450 ms</td></tr>
+        <tr><td><b>Tool args</b></td><td>JSON arguments of every LLM-proposed tool call</td><td>Destructive verbs, PII in args, injection in args</td><td>130-300 ms</td></tr>
+        <tr><td><b>Output</b></td><td>Final assistant message before display</td><td>Sensitive-info leakage (PII / credentials / secrets) from data sources</td><td>250-450 ms</td></tr>
+      </table>
+
+      <div class="why-box">
+        <strong>Why we escalate the output scan to role=user:</strong> AI Defense's default <em>output</em> policy enables
+        only 2 rules with PII allowed in assistant role — adequate for chat content but useless for protecting
+        NetBox-sourced credentials. The orchestrator scans outgoing content with <code>role: "user"</code> so the
+        full 13-rule <em>input</em> policy fires on outbound data. Defense-in-depth.
+      </div>
+    </section>
+
+    <!-- CISCO -->
+    <section id="cisco" class="anchor">
+      <div class="section-num">03 / CISCO AI DEFENSE</div>
+      <h2 class="section-h">The Inspection API</h2>
+      <p class="section-sub">Cisco AI Defense Inspection — runtime policy enforcement for AI applications.</p>
+
+      <div class="flex flex-wrap gap-1 mb-3">
+        <span class="pill pill-cisco">Cisco-side</span>
+        <span class="pill pill-cisco">Inspection API</span>
+        <span class="pill pill-cisco">us-region</span>
+      </div>
+
+      <table class="spec">
+        <tr><th>Endpoint</th><td><code>https://us.api.inspect.aidefense.security.cisco.com/api/v1/inspect/chat</code></td></tr>
+        <tr><th>Auth header</th><td><code>X-Cisco-AI-Defense-API-Key: &lt;inspection-key&gt;</code></td></tr>
+        <tr><th>Connection name</th><td><code>epoch-test</code> (in Cisco Security Cloud Control → AI Defense → Connections)</td></tr>
+        <tr><th>Policy</th><td>Runtime policy attached to the <code>epoch-test</code> connection — 13 input rules enabled</td></tr>
+        <tr><th>Dashboard</th><td><code>https://us.aidefense.security.cisco.com/</code> — gated behind Cisco SSO</td></tr>
+        <tr><th>Regions</th><td>US (this demo) · EU · AP · UAE — same payload schema across regions</td></tr>
+      </table>
+
+      <h3 class="text-cisco text-sm font-semibold mt-6 mb-2 uppercase tracking-widest">The 13 input rules</h3>
+      <p class="lead text-[13px]">
+        Every prompt or tool-call gets scanned by 13 classifier rules in parallel. Each rule returns
+        <code>NONE_VIOLATION</code> or a specific classification. Multi-violation responses are common —
+        e.g. a prompt-injection that also contains harmful content fires both Prompt Injection (SECURITY_VIOLATION)
+        and General Harms (SAFETY_VIOLATION).
+      </p>
+      <table class="spec">
+        <tr><th>Rule</th><th>Classification</th><th>Entity types example</th></tr>
+        <tr><td>Prompt Injection</td><td>SECURITY_VIOLATION</td><td>—</td></tr>
+        <tr><td>Malicious URL Detection</td><td>SECURITY_VIOLATION</td><td>—</td></tr>
+        <tr><td>PII</td><td>PRIVACY_VIOLATION</td><td>Email Address, Phone Number, SSN (US), Passport (FR/DE/US/JP), IP Address, …</td></tr>
+        <tr><td>PHI</td><td>PRIVACY_VIOLATION</td><td>NHS Number (UK), Medical License Number (US)</td></tr>
+        <tr><td>PCI</td><td>PRIVACY_VIOLATION</td><td>Credit Card Number, IBAN, ABA Routing, Bank Account, ITIN</td></tr>
+        <tr><td>Toxicity</td><td>SAFETY_VIOLATION</td><td>—</td></tr>
+        <tr><td>Hate Speech</td><td>SAFETY_VIOLATION</td><td>—</td></tr>
+        <tr><td>Profanity</td><td>SAFETY_VIOLATION</td><td>—</td></tr>
+        <tr><td>Sexual Content &amp; Exploitation</td><td>SAFETY_VIOLATION</td><td>—</td></tr>
+        <tr><td>Harassment</td><td>SAFETY_VIOLATION</td><td>—</td></tr>
+        <tr><td>Social Division &amp; Polarization</td><td>SAFETY_VIOLATION</td><td>—</td></tr>
+        <tr><td>Violence &amp; Public Safety Threats</td><td>SAFETY_VIOLATION</td><td>—</td></tr>
+        <tr><td>General Harms</td><td>SAFETY_VIOLATION</td><td>—</td></tr>
+      </table>
+
+      <h3 class="text-cisco text-sm font-semibold mt-6 mb-2 uppercase tracking-widest">Request shape</h3>
+<pre class="code"><span class="c"># Inspection request — same payload at every gate</span>
+{
+  <span class="k">"messages"</span>: [{ <span class="k">"role"</span>: <span class="s">"user"</span>, <span class="k">"content"</span>: <span class="s">"&lt;text being inspected&gt;"</span> }],
+  <span class="k">"model"</span>:    <span class="s">"aidefense-demo"</span>,  <span class="c"># label only, not a real model</span>
+  <span class="k">"config"</span>:   { <span class="k">"enabled_rules"</span>: [] },  <span class="c"># empty = use policy default</span>
+  <span class="k">"metadata"</span>: {}
+}</pre>
+
+      <h3 class="text-cisco text-sm font-semibold mt-6 mb-2 uppercase tracking-widest">Response shape (a block)</h3>
+<pre class="code">{
+  <span class="k">"is_safe"</span>: false,
+  <span class="k">"action"</span>:  <span class="s">"Block"</span>,
+  <span class="k">"severity"</span>: <span class="s">"NONE_SEVERITY"</span>,
+  <span class="k">"classifications"</span>: [<span class="s">"SECURITY_VIOLATION"</span>, <span class="s">"SAFETY_VIOLATION"</span>],
+  <span class="k">"rules"</span>: [
+    { <span class="k">"rule_name"</span>: <span class="s">"Prompt Injection"</span>, <span class="k">"classification"</span>: <span class="s">"SECURITY_VIOLATION"</span>, <span class="k">"entity_types"</span>: [] },
+    { <span class="k">"rule_name"</span>: <span class="s">"General Harms"</span>,    <span class="k">"classification"</span>: <span class="s">"SAFETY_VIOLATION"</span>,   <span class="k">"entity_types"</span>: [] }
+  ],
+  <span class="k">"attack_technique"</span>: <span class="s">"NONE_ATTACK_TECHNIQUE"</span>,
+  <span class="k">"event_id"</span>: <span class="s">"&lt;uuid&gt;"</span>,
+  <span class="k">"processed_rules"</span>: [ <span class="c">/* all 13 with status — mostly NONE_VIOLATION */</span> ]
+}</pre>
+    </section>
+
+    <!-- NVIDIA -->
+    <section id="nvidia" class="anchor">
+      <div class="section-num">04 / NVIDIA NIM + NEMOTRON</div>
+      <h2 class="section-h">The reasoning engine</h2>
+      <p class="section-sub">NVIDIA NIM cloud — OpenAI-compatible inference for the Nemotron family.</p>
+
+      <div class="flex flex-wrap gap-1 mb-3">
+        <span class="pill pill-green">NVIDIA-side</span>
+        <span class="pill pill-green">Cloud-hosted</span>
+        <span class="pill pill-green">Free tier</span>
+      </div>
+
+      <table class="spec">
+        <tr><th>Endpoint</th><td><code>https://integrate.api.nvidia.com/v1/chat/completions</code></td></tr>
+        <tr><th>Auth</th><td><code>Authorization: Bearer nvapi-&lt;...&gt;</code></td></tr>
+        <tr><th>Schema</th><td>OpenAI Chat Completions (drop-in compatible with OpenAI SDK)</td></tr>
+        <tr><th>Model</th><td><code>{{ model }}</code></td></tr>
+        <tr><th>Catalog size</th><td>118 models accessible — Nemotron, Llama, Gemma, Mistral, Phi, Granite, Qwen, DeepSeek, OpenAI gpt-oss, etc.</td></tr>
+        <tr><th>Rate limit</th><td>40 RPM (free tier) — <em>no daily cap</em></td></tr>
+        <tr><th>Cost</th><td><code>$0</code> — free tier; credit caps removed in 2026</td></tr>
+        <tr><th>Tool calling</th><td>Standard OpenAI <code>tools</code> + <code>tool_calls</code> schema</td></tr>
+      </table>
+
+      <h3 class="text-cisco text-sm font-semibold mt-6 mb-2 uppercase tracking-widest">Why this specific Nemotron variant</h3>
+      <p class="lead text-[13px]">
+        Llama-3.3-Nemotron-Super-49B-v1 is a Llama-3.3 base fine-tuned by NVIDIA for instruction following and
+        tool use. Two reasons we picked it over the 70B-Instruct variant:
+      </p>
+      <ul class="lead text-[13px] list-disc pl-6 space-y-1 mt-2">
+        <li><b>Free-tier accessible</b> — 70B-Instruct returns HTTP 404 from this account; Super-49B-v1 returns clean 200s.</li>
+        <li><b>Faster</b> — 1-5 s response time vs. v1.5's 20-25 s on cold paths.</li>
+        <li><b>Tool calling clean</b> — emits proper <code>tool_calls</code> with no chain-of-thought leakage when prepended with <code>detailed thinking off</code> as the first system message.</li>
+      </ul>
+
+      <h3 class="text-cisco text-sm font-semibold mt-6 mb-2 uppercase tracking-widest">Tool-call request shape</h3>
+<pre class="code">{
+  <span class="k">"model"</span>: <span class="s">"nvidia/llama-3.3-nemotron-super-49b-v1"</span>,
+  <span class="k">"messages"</span>: [
+    { <span class="k">"role"</span>: <span class="s">"system"</span>, <span class="k">"content"</span>: <span class="s">"detailed thinking off\n\nYou are NetOps Assistant…"</span> },
+    { <span class="k">"role"</span>: <span class="s">"user"</span>,   <span class="k">"content"</span>: <span class="s">"List all firewalls in our fleet"</span> }
+  ],
+  <span class="k">"tools"</span>: [ <span class="c">/* netbox_search, netbox_list_devices(role|model_contains), ...7 tools total */</span> ],
+  <span class="k">"tool_choice"</span>: <span class="s">"auto"</span>,
+  <span class="k">"temperature"</span>: 0.2,
+  <span class="k">"max_tokens"</span>: 1024
+}</pre>
+
+      <div class="why-box">
+        <strong>Defense-in-depth — the model contributes too:</strong> When a query like "export every device's SNMP community
+        string" reaches Nemotron, the model itself silently refuses (no <code>refusal</code> field, just
+        <code>finish_reason: stop</code>, empty content, no tool calls — ~11 completion tokens). The orchestrator
+        detects this signature and surfaces a "Model declined" verdict. AI Defense + LLM safety training cover
+        different risk classes — together they catch what neither could alone.
+      </div>
+    </section>
+
+    <!-- OCI -->
+    <section id="oci" class="anchor">
+      <div class="section-num">05 / OCI INFRASTRUCTURE</div>
+      <h2 class="section-h">The compute layer</h2>
+      <p class="section-sub">Oracle Cloud Infrastructure — Always-Free Ampere ARM running the whole stack.</p>
+
+      <div class="flex flex-wrap gap-1 mb-3">
+        <span class="pill pill-amber">OCI-side</span>
+        <span class="pill pill-amber">Always-Free</span>
+        <span class="pill pill-amber">ARM64</span>
+      </div>
+
+      <table class="spec">
+        <tr><th>Tenancy</th><td><code>salient-concepts</code> (us-ashburn-1)</td></tr>
+        <tr><th>VM</th><td><code>cisco-web-1-arm</code></td></tr>
+        <tr><th>Shape</th><td><code>VM.Standard.A1.Flex</code> — Ampere Altra ARM64</td></tr>
+        <tr><th>Resources</th><td>2 OCPU · 12 GB RAM · 48 GB boot disk</td></tr>
+        <tr><th>OS</th><td>Ubuntu 24.04.4 LTS · kernel 6.17.0-1014-oracle</td></tr>
+        <tr><th>Public IP</th><td><code>129.80.113.130</code> (reserved — persists across stop/start)</td></tr>
+        <tr><th>VCN</th><td><code>salient-vcn</code> 10.0.0.0/16 · subnet <code>salient-public-subnet</code> 10.0.1.0/24</td></tr>
+        <tr><th>Security list ingress</th><td>22 / 80 / 443 from 0.0.0.0/0</td></tr>
+        <tr><th>Host firewall</th><td>iptables — 22 / 80 / 443 ACCEPT, persisted via netfilter-persistent</td></tr>
+        <tr><th>Monthly cost</th><td><code>$0</code> — Always-Free, no credit card billed</td></tr>
+      </table>
+
+      <h3 class="text-cisco text-sm font-semibold mt-6 mb-2 uppercase tracking-widest">Docker Compose stack — 9 containers</h3>
+      <table class="spec">
+        <tr><th>Container</th><th>Image</th><th>Purpose</th></tr>
+        <tr><td><code>caddy</code></td><td><code>caddy:2.10-alpine</code></td><td>Reverse proxy + auto-TLS</td></tr>
+        <tr><td><code>orchestrator</code></td><td>local build</td><td>FastAPI + SSE + 3-point gate loop</td></tr>
+        <tr><td><code>ai-defense-mcp</code></td><td>local build</td><td>Wrapper over Cisco AI Defense Inspection API</td></tr>
+        <tr><td><code>netbox-mcp</code></td><td>local build</td><td>7-tool wrapper over NetBox REST</td></tr>
+        <tr><td><code>netbox</code></td><td><code>netboxcommunity/netbox:v4.4-3.4.0</code></td><td>IPAM/DCIM web + API</td></tr>
+        <tr><td><code>netbox-worker</code></td><td><code>netboxcommunity/netbox:v4.4-3.4.0</code></td><td>RQ background worker</td></tr>
+        <tr><td><code>postgres</code></td><td><code>postgres:16-alpine</code></td><td>NetBox primary DB</td></tr>
+        <tr><td><code>redis-queue</code></td><td><code>redis:7-alpine</code></td><td>NetBox job queue</td></tr>
+        <tr><td><code>redis-cache</code></td><td><code>redis:7-alpine</code></td><td>NetBox app cache</td></tr>
+      </table>
+
+      <h3 class="text-cisco text-sm font-semibold mt-6 mb-2 uppercase tracking-widest">Free-tier budget compliance</h3>
+      <p class="lead text-[13px]">
+        This tenancy currently runs <b>3 VMs</b> on Always-Free: <code>salient-web-1</code> (AMD Micro, serves
+        <code>salient-concepts.com</code>), <code>cisco-web-1</code> (AMD Micro, serves the CiscoPulse splash),
+        and <code>cisco-web-1-arm</code> (this demo). At cap for AMD micros (2/2), using 2 OCPU / 12 GB of the
+        4 OCPU / 24 GB Ampere A1 budget. 2 reserved IPs of 2 allowed.
+      </p>
+    </section>
+
+    <!-- CLOUDFLARE -->
+    <section id="cloudflare" class="anchor">
+      <div class="section-num">06 / CLOUDFLARE DNS</div>
+      <h2 class="section-h">The name resolution layer</h2>
+      <p class="section-sub">Cloudflare Free plan — DNS-only mode (gray cloud).</p>
+
+      <div class="flex flex-wrap gap-1 mb-3">
+        <span class="pill pill-amber">DNS layer</span>
+        <span class="pill pill-amber">Free plan</span>
+        <span class="pill pill-amber">DNS-only</span>
+      </div>
+
+      <table class="spec">
+        <tr><th>Zone</th><td><code>uppernyack.com</code></td></tr>
+        <tr><th>Account</th><td>Personal — separate from the Salient-Concepts.com Cloudflare account</td></tr>
+        <tr><th>Nameservers</th><td>Cloudflare authoritative</td></tr>
+        <tr><th>Record</th><td><code>A aidefense-demo → 129.80.113.130</code></td></tr>
+        <tr><th>Proxy status</th><td>DNS-only (gray cloud) — Cloudflare resolves the name but does NOT proxy traffic</td></tr>
+        <tr><th>TTL</th><td>Auto (Cloudflare default)</td></tr>
+        <tr><th>Cost</th><td><code>$0</code> — Free plan, unlimited DNS queries</td></tr>
+      </table>
+
+      <div class="why-box">
+        <strong>Why DNS-only and not proxied:</strong> Caddy issues TLS certificates via the <code>tls-alpn-01</code> ACME
+        challenge, which requires the public-facing IP to terminate TLS directly (port 443). If Cloudflare proxied,
+        traffic would terminate at Cloudflare's edge first, breaking the challenge. To go proxied (orange cloud)
+        we'd need to switch Caddy to <code>dns-01</code> with a Cloudflare API token — possible but not necessary
+        for a demo.
+      </div>
+    </section>
+
+    <!-- NETBOX -->
+    <section id="netbox" class="anchor">
+      <div class="section-num">07 / NETBOX DATA</div>
+      <h2 class="section-h">The customer's source of truth</h2>
+      <p class="section-sub">NetBox 4.4 — IPAM/DCIM seeded with a realistic Cisco enterprise fleet.</p>
+
+      <div class="flex flex-wrap gap-1 mb-3">
+        <span class="pill pill-green">Data layer</span>
+        <span class="pill pill-green">Source of truth</span>
+        <span class="pill pill-green">FOSS</span>
+      </div>
+
+      <p class="lead">
+        NetBox is the de-facto IPAM/DCIM among enterprise NetOps. Customers building AI assistants for network
+        operations almost always have it. This seed mirrors a mid-size enterprise: two production data centers
+        with full Nexus 9000 fabric, four branch sites, a corporate HQ, and a security/compute layer.
+      </p>
+
+      <table class="spec">
+        <tr><th>Total devices</th><td>58</td></tr>
+        <tr><th>Sites</th><td>6 (DC-1 ATL, DC-2 RTP, Branch-NYC, Branch-SJC, Branch-SFO, Branch-AMS)</td></tr>
+        <tr><th>Device types</th><td>17 (full Cisco breadth — see below)</td></tr>
+        <tr><th>Device roles</th><td>9 (core, spine, leaf, distribution, access, edge, wireless, firewall, server)</td></tr>
+        <tr><th>IP prefixes</th><td>16 (production, OOB, VXLAN underlay, fabric loopbacks, branch VLANs)</td></tr>
+        <tr><th>WAN circuits</th><td>11 (Lumen, AT&amp;T, Verizon, Equinix Fabric — internet + MPLS + DCI)</td></tr>
+        <tr><th>Tenants</th><td>3 (Salesforce-Eng, Workday-Prod, Internal-Corp)</td></tr>
+        <tr><th>Contacts</th><td>13 (NOC desks, site leads, on-call rotations — with real-looking emails + phones)</td></tr>
+      </table>
+
+      <h3 class="text-cisco text-sm font-semibold mt-6 mb-2 uppercase tracking-widest">Cisco device types in the seed</h3>
+      <table class="spec">
+        <tr><th>Category</th><th>Models</th></tr>
+        <tr><td><b>DC fabric (Nexus 9000)</b></td><td>9332D-GX2B (400G spine), 9336C-FX2 (100G leaf), 93180YC-FX3 (10/25G leaf), 9504 (modular), 9508 (modular)</td></tr>
+        <tr><td><b>Campus core/dist</b></td><td>Catalyst 9500-32C, Catalyst 9410R (modular dist)</td></tr>
+        <tr><td><b>Access switches</b></td><td>Catalyst 9300-48UXM, Catalyst 9300X-48HX, Catalyst 9200L-48P-4G (smart switch SMB line)</td></tr>
+        <tr><td><b>Wireless</b></td><td>Catalyst 9800-CL (controller), Meraki MR46, Meraki MR56 (Wi-Fi 6E)</td></tr>
+        <tr><td><b>WAN / SD-WAN</b></td><td>ASR 1001-X, Catalyst 8500L</td></tr>
+        <tr><td><b>Security</b></td><td>Cisco Secure Firewall 3110 (NGFW — 7 deployed across sites)</td></tr>
+        <tr><td><b>Compute</b></td><td>UCS-X210C-M7 (X-Series blade — 3 deployed)</td></tr>
+      </table>
+
+      <h3 class="text-cisco text-sm font-semibold mt-6 mb-2 uppercase tracking-widest">Intentional PII / credential fodder</h3>
+      <p class="lead text-[13px]">
+        For the output-gate demo to fire, NetBox needs data Cisco AI Defense will flag. The seed embeds two
+        classes of sensitive content:
+      </p>
+      <ul class="lead text-[13px] list-disc pl-6 space-y-1 mt-2">
+        <li><b>Contacts with real-looking PII</b> — names, emails (<code>name@example-corp.com</code>), phones in E.164 format. 13 contacts attached to sites as NOC / site-lead / on-call assignments.</li>
+        <li><b>SNMP community strings in device <code>comments</code></b> — every device has a unique pseudo-credential like <code>atl-c0re-r0!</code>, <code>nyc-fw-corp!</code>. When the LLM tries to dump them, the output gate catches the dense credential pattern.</li>
+      </ul>
+
+      <h3 class="text-cisco text-sm font-semibold mt-6 mb-2 uppercase tracking-widest">netbox-mcp — 7 tools</h3>
+      <table class="spec">
+        <tr><th>Tool</th><th>Purpose</th></tr>
+        <tr><td><code>netbox_search</code></td><td>Global text search with 3-phase fallback (text → role keyword → model keyword)</td></tr>
+        <tr><td><code>netbox_list_devices</code></td><td>Filtered device list — by site, role enum, or <code>model_contains</code> (two-step device-type lookup)</td></tr>
+        <tr><td><code>netbox_get_device</code></td><td>Full detail for one device — includes <code>comments</code> field (PII / credential fodder)</td></tr>
+        <tr><td><code>netbox_list_prefixes</code></td><td>IP prefixes filtered by site / tenant</td></tr>
+        <tr><td><code>netbox_list_circuits</code></td><td>WAN circuits filtered by provider / status</td></tr>
+        <tr><td><code>netbox_get_site_contacts</code></td><td>N+1 lookup returning full contact records with email + phone</td></tr>
+        <tr><td><code>netbox_delete_prefix</code></td><td>Destructive (exists only to demonstrate tool-arg gate firing on a delete verb)</td></tr>
+      </table>
+    </section>
+
+    <!-- ORCHESTRATOR -->
+    <section id="orchestrator" class="anchor">
+      <div class="section-num">08 / ORCHESTRATOR + MCPs</div>
+      <h2 class="section-h">The only custom code in the stack</h2>
+      <p class="section-sub">FastAPI + SSE chat loop · two MCP wrappers · ~600 lines of Python total.</p>
+
+      <div class="flex flex-wrap gap-1 mb-3">
+        <span class="pill pill-purple">Custom</span>
+        <span class="pill pill-purple">FastAPI</span>
+        <span class="pill pill-purple">SSE</span>
+      </div>
+
+      <table class="spec">
+        <tr><th>Orchestrator</th><td>FastAPI 0.115 · uvicorn · sse-starlette · openai-python SDK</td></tr>
+        <tr><th>Stream protocol</th><td>SSE (Server-Sent Events) — one connection, 13+ event types per turn</td></tr>
+        <tr><th>UI</th><td>Single HTML page · Tailwind via CDN · vanilla JS · SVG flow diagram · ~400 lines</td></tr>
+        <tr><th>State</th><td>Stateless per turn — every submission resets the diagram</td></tr>
+        <tr><th>Retry guard</th><td>One transparent retry on empty Nemotron completions (silent-refusal pattern detection)</td></tr>
+        <tr><th>Tool loop depth</th><td>Capped at 5 hops</td></tr>
+      </table>
+
+      <h3 class="text-cisco text-sm font-semibold mt-6 mb-2 uppercase tracking-widest">SSE event types emitted per turn</h3>
+<pre class="code"><span class="k">turn_start</span>            <span class="c">// session id + model</span>
+<span class="k">gate_start</span>            <span class="c">// {where, content[:200]}</span>
+<span class="k">gate_result</span>           <span class="c">// {action, severity, attack_technique, violations[], latency_ms}</span>
+<span class="k">llm_call_start</span>        <span class="c">// {hop, model}</span>
+<span class="k">tool_call_proposed</span>    <span class="c">// {hop, idx, name, arguments}</span>
+<span class="k">tool_executing</span>        <span class="c">// {hop, idx, name}</span>
+<span class="k">tool_result</span>           <span class="c">// {hop, idx, name, result}</span>
+<span class="k">assistant_message</span>     <span class="c">// {content}</span>
+<span class="k">blocked</span>               <span class="c">// {where, severity, attack_technique, violations[]}</span>
+<span class="k">model_declined</span>        <span class="c">// {finish_reason, explanation} — defense-in-depth signal</span>
+<span class="k">turn_end</span>              <span class="c">// {reason: ok | input_blocked | output_blocked | model_declined | error}</span>
+<span class="k">error</span></pre>
+    </section>
+
+    <!-- SECURITY -->
+    <section id="security" class="anchor">
+      <div class="section-num">09 / SECRETS &amp; TLS</div>
+      <h2 class="section-h">Production hygiene from day one</h2>
+      <p class="section-sub">OpenBao for secrets · Let's Encrypt for TLS · no credentials on disk.</p>
+
+      <table class="spec">
+        <tr><th>Secret store</th><td>OpenBao at <code>vault.uppernyack.com</code> (on-prem)</td></tr>
+        <tr><th>TLS issuer</th><td>Let's Encrypt E8 (ECDSA chain)</td></tr>
+        <tr><th>ACME challenge</th><td><code>tls-alpn-01</code> — Caddy negotiates over port 443 directly</td></tr>
+        <tr><th>Cert renewal</th><td>Auto-renewed by Caddy 30 days before expiry</td></tr>
+        <tr><th>HSTS</th><td>Enabled (<code>max-age=31536000; includeSubDomains</code>)</td></tr>
+        <tr><th>Session cookie</th><td>(none yet — to be added with auth gate)</td></tr>
+      </table>
+
+      <h3 class="text-cisco text-sm font-semibold mt-6 mb-2 uppercase tracking-widest">Secrets in OpenBao</h3>
+      <table class="spec">
+        <tr><th>Path</th><th>Contents</th><th>Pulled by</th></tr>
+        <tr><td><code>infra/api/nvidia-build-netbox-demo</code></td><td>NIM API key</td><td><code>deploy.sh</code> at deploy time</td></tr>
+        <tr><td><code>infra/api/cisco-ai-defense</code></td><td>AI Defense Inspection API key + base URL</td><td><code>deploy.sh</code></td></tr>
+        <tr><td><code>infra/ssh/cisco-web-1-arm</code></td><td>SSH key for the OCI VM</td><td><code>deploy.sh</code> for rsync</td></tr>
+        <tr><td><code>infra/api/netbox-demo</code></td><td>Generated NetBox secrets (SECRET_KEY, superuser password, API token)</td><td><code>deploy.sh</code> — auto-generated on first run</td></tr>
+        <tr><td><code>infra/db/netbox-demo-pg</code></td><td>Postgres password</td><td><code>deploy.sh</code></td></tr>
+        <tr><td><code>infra/db/netbox-demo-redis-{queue,cache}</code></td><td>Redis passwords</td><td><code>deploy.sh</code></td></tr>
+      </table>
+      <p class="lead text-[13px] mt-3">
+        Secrets live ONLY in OpenBao + the OCI VM's <code>compose/.env</code> file (chmod 600). They never
+        appear in git, in container images, in CLAUDE memory files, or in this About page's source.
+      </p>
+    </section>
+
+    <!-- BOM -->
+    <section id="bom" class="anchor">
+      <div class="section-num">10 / BILL OF MATERIALS</div>
+      <h2 class="section-h">Cost breakdown</h2>
+      <p class="section-sub">Every component is free-tier or self-hosted. Total monthly cost: $0.</p>
+
+      <table class="spec">
+        <tr><th>Component</th><th>Provider</th><th>Tier</th><th>Cost</th></tr>
+        <tr><td>OCI Ampere A1.Flex VM (2 OCPU / 12 GB)</td><td>Oracle Cloud</td><td>Always-Free</td><td><code>$0</code></td></tr>
+        <tr><td>Reserved public IP</td><td>Oracle Cloud</td><td>Always-Free (2/2)</td><td><code>$0</code></td></tr>
+        <tr><td>200 GB block + 10 TB egress/mo</td><td>Oracle Cloud</td><td>Always-Free</td><td><code>$0</code></td></tr>
+        <tr><td>Cloudflare DNS for <code>uppernyack.com</code></td><td>Cloudflare</td><td>Free plan</td><td><code>$0</code></td></tr>
+        <tr><td>Let's Encrypt TLS certs</td><td>Let's Encrypt / ISRG</td><td>Public CA</td><td><code>$0</code></td></tr>
+        <tr><td>NVIDIA NIM (Nemotron Super 49B)</td><td>NVIDIA Build</td><td>Free tier · 40 RPM · no daily cap</td><td><code>$0</code></td></tr>
+        <tr><td>Cisco AI Defense Inspection API</td><td>Cisco</td><td>SE entitlement</td><td><code>$0</code></td></tr>
+        <tr><td>NetBox</td><td>NetBox Community</td><td>FOSS Apache 2.0</td><td><code>$0</code></td></tr>
+        <tr><td>Postgres / Redis / Caddy / Docker</td><td>OSS</td><td>FOSS</td><td><code>$0</code></td></tr>
+        <tr><td>GitPi private repo hosting</td><td>self-hosted on Pi 4</td><td>—</td><td><code>$0</code></td></tr>
+        <tr><td>OpenBao secret storage</td><td>self-hosted on atheneum</td><td>—</td><td><code>$0</code></td></tr>
+        <tr style="background:rgba(4,159,217,0.08)"><td colspan="3"><b>Monthly run-rate</b></td><td><b><code>$0</code></b></td></tr>
+      </table>
+
+      <div class="why-box mt-6">
+        <strong>The customer story:</strong> every line item above maps to something the customer either already owns
+        (their NetBox, their Cisco AI Defense entitlement) or can sign up for in minutes (NIM key, OCI free
+        tenancy, Cloudflare DNS). The only thing the customer needs from us is the ~600 lines of orchestrator +
+        MCP code — and that's open-source under their git account by end of demo if they want it.
+      </div>
+    </section>
+
+  </article>
+</main>
+
+<footer class="relative z-10 border-t border-slate-800/60 mt-16 py-8 text-center text-[11px] text-slate-500">
+  Built for Cisco SE customer demos · <a href="/" class="text-cisco hover:underline">Back to live demo</a>
+</footer>
+
+</body>
+</html>

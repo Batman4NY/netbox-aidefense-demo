@@ -137,6 +137,11 @@ async def index(request: Request):
     return templates.TemplateResponse("index.html", {"request": request, "model": NIM_MODEL, "build_id": BUILD_ID})
 
 
+@app.get("/about", response_class=HTMLResponse)
+async def about(request: Request):
+    return templates.TemplateResponse("about.html", {"request": request, "model": NIM_MODEL, "build_id": BUILD_ID})
+
+
 @app.get("/healthz")
 async def healthz():
     return {"status": "ok"}
