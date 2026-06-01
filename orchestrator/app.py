@@ -160,25 +160,66 @@ TETRAGON_LOG = os.environ.get("TETRAGON_LOG", "/var/log/tetragon/tetragon.log")
 DEMO_CONTAINER_PREFIXES = ("aidefense-demo-",)
 
 
+import re as _re
+
+# Patterns that look like secret-in-args (redis -a, postgres password env, bearer tokens, etc.).
+# Tetragon faithfully captures process args, which can include secrets — redact defensively.
+_SECRET_PATTERNS = [
+    (_re.compile(r'(-a\s+)\S+'),              r'\1***'),   # redis-cli -a <pw>
+    (_re.compile(r'(--password[=\s]+)\S+'),   r'\1***'),
+    (_re.compile(r'(PGPASSWORD=)\S+'),        r'\1***'),
+    (_re.compile(r'(Bearer\s+)\S+'),          r'\1***'),
+    (_re.compile(r'(Token\s+)[A-Fa-f0-9]{20,}'), r'\1***'),
+    (_re.compile(r'(nvapi-)\S+'),             r'\1***'),
+    (_re.compile(r'(api[_-]?key[=\s]+)\S+', _re.I), r'\1***'),
+]
+
+def _redact(s: str) -> str:
+    for pat, repl in _SECRET_PATTERNS:
+        s = pat.sub(repl, s)
+    return s
+
+
+# Healthcheck / sidecar noise we don't want in the demo UI
+_NOISE_BINARIES = {
+    "runc", "containerd-shim", "ps", "init", "tetragon",
+    "redis-cli", "pg_isready", "wget", "curl",       # healthchecks
+    "sh", "bash", "grep", "stat", "cat", "id", "awk", "sort", "tail",  # sub-shell noise
+    "date", "egrep", "update-motd-fsck-at-reboot", "update-motd-reboot-required",
+    "97-overlayroot", "98-fsck-at-reboot", "98-reboot-required",
+    "run-parts",
+}
+
+# Loopback / sidecar TCP traffic — drop. We only care about external + intra-stack hops.
+_NOISE_DEST_PATTERNS = (
+    "127.0.0.1:",  # loopback
+)
+
+
 def _tetragon_event_is_interesting(ev: dict[str, Any]) -> dict[str, Any] | None:
-    """Filter + flatten a raw Tetragon event into a UI-friendly dict.
+    """Filter + flatten + redact a raw Tetragon event into a UI-friendly dict.
     Returns None to drop the event."""
     if "process_kprobe" in ev:
         kp = ev["process_kprobe"]
         if kp.get("function_name") != "tcp_connect":
             return None
         proc = kp.get("process") or {}
-        # Extract the destination from args[0] (the sock struct)
+        binary = (proc.get("binary") or "").split("/")[-1] or "?"
+        if binary in _NOISE_BINARIES:
+            return None
+        # Extract the destination from args (the sock struct)
         dest = None
         for arg in kp.get("args") or []:
             sock = arg.get("sock_arg")
             if sock:
                 dest = f"{sock.get('daddr', '?')}:{sock.get('dport', '?')}"
                 break
+        if dest and any(dest.startswith(p) for p in _NOISE_DEST_PATTERNS):
+            return None
         return {
             "kind": "tcp_connect",
             "time": ev.get("time"),
-            "binary": proc.get("binary", "").split("/")[-1] or "?",
+            "binary": binary,
             "pid": proc.get("pid"),
             "container": (proc.get("pod") or {}).get("name") or proc.get("docker", "")[:12] or "host",
             "dest": dest,
@@ -191,8 +232,7 @@ def _tetragon_event_is_interesting(ev: dict[str, Any]) -> dict[str, Any] | None:
         if not cid:
             return None
         binary = (proc.get("binary") or "").split("/")[-1] or "?"
-        # Drop runtime noise — Tetragon itself, ps, sh probes
-        if binary in {"runc", "containerd-shim", "ps", "init", "tetragon"}:
+        if binary in _NOISE_BINARIES:
             return None
         return {
             "kind": "process_exec",
@@ -200,7 +240,7 @@ def _tetragon_event_is_interesting(ev: dict[str, Any]) -> dict[str, Any] | None:
             "binary": binary,
             "pid": proc.get("pid"),
             "container": cid[:12],
-            "args": (proc.get("arguments") or "")[:120],
+            "args": _redact((proc.get("arguments") or ""))[:120],
         }
     return None
 
