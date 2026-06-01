@@ -173,6 +173,11 @@ ssh_cmd "chmod 600 $REMOTE_PATH/compose/.env"
 echo "== docker compose build + up -d =="
 ssh_cmd "cd $REMOTE_PATH/compose && sudo docker compose build && sudo docker compose up -d"
 
+# Caddy uses a bind-mounted Caddyfile that loses its inode when rsync replaces the file.
+# Force-restart Caddy so the new config is actually loaded.
+echo "== forcing caddy restart so the bind-mounted Caddyfile reload sticks =="
+ssh_cmd "cd $REMOTE_PATH/compose && sudo docker compose restart caddy"
+
 # ---- Wait for NetBox healthcheck then seed if needed ----
 echo "== Waiting for NetBox to become healthy (this can take 60-120s on first run) =="
 for i in {1..40}; do
