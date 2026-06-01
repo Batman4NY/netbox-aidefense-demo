@@ -64,6 +64,10 @@ services:
       GATE_TOOL_ARGS_ENABLED: ${GATE_TOOL_ARGS_ENABLED}
       GATE_OUTPUT_ENABLED: ${GATE_OUTPUT_ENABLED}
       LOG_LEVEL: ${ORCHESTRATOR_LOG_LEVEL}
+      # Tetragon JSONL log path inside this container (mounted read-only below)
+      TETRAGON_LOG: /var/log/tetragon/tetragon.log
+    volumes:
+      - tetragon_logs:/var/log/tetragon:ro
     networks: [demo]
     restart: unless-stopped
     depends_on:

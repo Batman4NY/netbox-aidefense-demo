@@ -147,6 +147,104 @@ async def healthz():
     return {"status": "ok"}
 
 
+# ─── Tetragon eBPF event stream ─────────────────────────────────────────
+# Tails the JSONL log Tetragon writes to /var/log/tetragon/tetragon.log
+# (mounted from the tetragon_logs Docker volume, read-only) and streams
+# filtered events to the UI via SSE.
+#
+# We surface only events relevant to the demo:
+#   - process_kprobe with function_name=tcp_connect  (outbound network)
+#   - process_exec inside our demo containers        (process start)
+# Everything else (OS housekeeping, motd scripts, etc) is dropped.
+TETRAGON_LOG = os.environ.get("TETRAGON_LOG", "/var/log/tetragon/tetragon.log")
+DEMO_CONTAINER_PREFIXES = ("aidefense-demo-",)
+
+
+def _tetragon_event_is_interesting(ev: dict[str, Any]) -> dict[str, Any] | None:
+    """Filter + flatten a raw Tetragon event into a UI-friendly dict.
+    Returns None to drop the event."""
+    if "process_kprobe" in ev:
+        kp = ev["process_kprobe"]
+        if kp.get("function_name") != "tcp_connect":
+            return None
+        proc = kp.get("process") or {}
+        # Extract the destination from args[0] (the sock struct)
+        dest = None
+        for arg in kp.get("args") or []:
+            sock = arg.get("sock_arg")
+            if sock:
+                dest = f"{sock.get('daddr', '?')}:{sock.get('dport', '?')}"
+                break
+        return {
+            "kind": "tcp_connect",
+            "time": ev.get("time"),
+            "binary": proc.get("binary", "").split("/")[-1] or "?",
+            "pid": proc.get("pid"),
+            "container": (proc.get("pod") or {}).get("name") or proc.get("docker", "")[:12] or "host",
+            "dest": dest,
+        }
+    if "process_exec" in ev:
+        pe = ev["process_exec"]
+        proc = pe.get("process") or {}
+        cid = proc.get("docker", "")
+        # Only surface exec events from our demo containers
+        if not cid:
+            return None
+        binary = (proc.get("binary") or "").split("/")[-1] or "?"
+        # Drop runtime noise — Tetragon itself, ps, sh probes
+        if binary in {"runc", "containerd-shim", "ps", "init", "tetragon"}:
+            return None
+        return {
+            "kind": "process_exec",
+            "time": ev.get("time"),
+            "binary": binary,
+            "pid": proc.get("pid"),
+            "container": cid[:12],
+            "args": (proc.get("arguments") or "")[:120],
+        }
+    return None
+
+
+@app.get("/tetragon/stream")
+async def tetragon_stream(request: Request):
+    """SSE stream of filtered Tetragon events. Opens the JSONL log, seeks
+    to the end, and tails new lines as Tetragon writes them."""
+    import asyncio
+
+    async def gen():
+        # If Tetragon isn't running yet, surface a placeholder event so the UI shows status.
+        if not os.path.exists(TETRAGON_LOG):
+            yield sse("tetragon_unavailable", {"log": TETRAGON_LOG, "message": "Tetragon log not mounted. Is the tetragon container running?"})
+            return
+        yield sse("tetragon_ready", {"log": TETRAGON_LOG})
+        # Open and seek to end (only tail new events)
+        f = open(TETRAGON_LOG, "r")
+        try:
+            f.seek(0, 2)  # SEEK_END
+            buf = ""
+            while not await request.is_disconnected():
+                chunk = f.read(8192)
+                if not chunk:
+                    await asyncio.sleep(0.3)
+                    continue
+                buf += chunk
+                while "\n" in buf:
+                    line, buf = buf.split("\n", 1)
+                    if not line.strip():
+                        continue
+                    try:
+                        ev = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    out = _tetragon_event_is_interesting(ev)
+                    if out:
+                        yield sse("tetragon_event", out)
+        finally:
+            f.close()
+
+    return EventSourceResponse(gen())
+
+
 class ChatRequest(BaseModel):
     message: str
     history: list[dict[str, Any]] = []
