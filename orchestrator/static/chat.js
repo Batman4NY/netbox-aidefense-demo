@@ -286,7 +286,9 @@ function handleEvent({ event, data: d }) {
 
     case 'llm_call_start':
       nodeClass(d.hop === 0 ? 'n-nemo' : 'n-synth', 'active');
-      if (d.hop > 0) edgeClass('e-netbox-down', 'active');
+      // When the synth hop starts, data has arrived at Nemotron — the NetBox→synth
+      // edge transitions from pulsing (in-flight) to solid (consumed).
+      if (d.hop > 0) edgeClass('e-netbox-down', 'complete');
       pushEvent('llm', '🧠', `<b>Nemotron</b> call <span style="color:#475569">(hop ${d.hop})</span>`);
       return;
 
