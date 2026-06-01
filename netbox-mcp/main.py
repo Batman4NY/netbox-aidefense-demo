@@ -54,12 +54,12 @@ TOOLS_SPEC: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "netbox_list_devices",
-            "description": "List network devices, optionally filtered by site and/or role. Returns name, model, status, primary IP. Note: NetBox uses 'role' for the device's function (core/distribution/access/edge/wireless) — switches, routers, and firewalls are all device TYPES, not roles. To list 'switches' just filter by site and the tool returns every device.",
+            "description": "List network devices, optionally filtered by site and/or role. Returns name, model, status, primary IP. Note: NetBox uses 'role' for the device's function — switches, routers, and firewalls are device TYPES, not roles. To list 'switches' just filter by site (every returned device IS a switch unless its role is wireless/server/firewall).",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "site": {"type": "string", "description": "Site slug. Available: dc-1-atl, dc-2-rtp, branch-sjc, branch-ams"},
-                    "role": {"type": "string", "enum": ["core", "distribution", "access", "edge", "wireless"], "description": "Device functional role. ONLY these exact values are valid."},
+                    "site": {"type": "string", "description": "Site slug. Available: dc-1-atl, dc-2-rtp, branch-nyc, branch-sjc, branch-sfo, branch-ams"},
+                    "role": {"type": "string", "enum": ["core", "distribution", "access", "edge", "wireless", "spine", "leaf", "firewall", "server"], "description": "Device functional role. ONLY these exact values are valid."},
                     "limit": {"type": "integer", "default": 25, "minimum": 1, "maximum": 100},
                 },
             },
