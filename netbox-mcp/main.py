@@ -187,16 +187,82 @@ async def _get(path: str, params: dict | None = None) -> dict[str, Any]:
     return r.json()
 
 
+# Map common natural-language keywords to NetBox role slugs / model-name substrings.
+# Used by netbox_search to recover when the LLM picks search for an inventory question.
+_ROLE_SYNONYMS = {
+    "firewall": "firewall", "firewalls": "firewall", "ngfw": "firewall", "fw": "firewall",
+    "router": "edge",       "routers": "edge",       "wan": "edge",      "sd-wan": "edge",
+    "ap": "wireless",       "aps": "wireless",       "wlc": "wireless",  "wifi": "wireless",
+    "access-point": "wireless", "access-points": "wireless", "wireless": "wireless",
+    "spine": "spine",       "spines": "spine",
+    "leaf": "leaf",         "leaves": "leaf",
+    "server": "server",     "servers": "server",     "ucs": "server",    "compute": "server",
+    "core": "core",
+    "distribution": "distribution", "dist": "distribution",
+    "access": "access",
+}
+_MODEL_KEYWORDS = ["nexus", "catalyst", "meraki", "asr", "secure firewall", "ucs"]
+
+
 async def t_search(query: str) -> dict[str, Any]:
+    """Global search. Strategy:
+    1. NetBox text search across devices/sites/prefixes/circuits (matches names + serials).
+    2. If devices empty AND query contains a role keyword → fall through to role-filtered list.
+    3. If devices empty AND query contains a model keyword (nexus/catalyst/etc) → device-type filter.
+    This makes the tool robust to inventory questions like 'how many firewalls'."""
     hits: dict[str, list] = {}
+    q_lower = query.lower().strip()
+
+    # ── Phase 1: standard text search ──────────────────────────
     for kind, path in [
-        ("devices", "/api/dcim/devices/"),
-        ("sites", "/api/dcim/sites/"),
+        ("devices",  "/api/dcim/devices/"),
+        ("sites",    "/api/dcim/sites/"),
         ("prefixes", "/api/ipam/prefixes/"),
         ("circuits", "/api/circuits/circuits/"),
     ]:
-        data = await _get(path, {"q": query, "limit": 5})
-        hits[kind] = [{"id": x["id"], "display": x.get("display") or x.get("name") or str(x)} for x in data.get("results", [])]
+        data = await _get(path, {"q": query, "limit": 25})
+        hits[kind] = [{"id": x["id"], "display": x.get("display") or x.get("name") or str(x)}
+                      for x in data.get("results", [])]
+
+    # ── Phase 2: role-keyword fallback ─────────────────────────
+    if not hits["devices"]:
+        role_slug = None
+        for word in q_lower.replace(",", " ").split():
+            if word in _ROLE_SYNONYMS:
+                role_slug = _ROLE_SYNONYMS[word]
+                break
+        if role_slug:
+            try:
+                data = await _get("/api/dcim/devices/", {"role": role_slug, "limit": 50})
+                hits["devices"] = [
+                    {"id": x["id"],
+                     "display": x.get("name"),
+                     "model": (x.get("device_type") or {}).get("display"),
+                     "site": (x.get("site") or {}).get("display"),
+                     "role": (x.get("role") or {}).get("display"),
+                     "status": x.get("status", {}).get("value")}
+                    for x in data.get("results", [])
+                ]
+                hits["matched_role"] = role_slug
+            except httpx.HTTPStatusError:
+                pass
+
+    # ── Phase 3: model-keyword fallback ────────────────────────
+    if not hits["devices"]:
+        for kw in _MODEL_KEYWORDS:
+            if kw in q_lower:
+                data = await _get("/api/dcim/devices/", {"model__ic": kw, "limit": 50})
+                hits["devices"] = [
+                    {"id": x["id"],
+                     "display": x.get("name"),
+                     "model": (x.get("device_type") or {}).get("display"),
+                     "site": (x.get("site") or {}).get("display")}
+                    for x in data.get("results", [])
+                ]
+                if hits["devices"]:
+                    hits["matched_model_keyword"] = kw
+                    break
+
     return hits
 
 
