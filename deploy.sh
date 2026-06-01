@@ -110,8 +110,12 @@ cat > "$ENV_TMP" <<EOF
 DEMO_DOMAIN=aidefense-demo.uppernyack.com
 
 AI_DEFENSE_API_KEY=$AID_KEY
-AI_DEFENSE_BASE_URL=https://us.api.inspect.aidefense.security.cisco.com
+AI_DEFENSE_REGION=us
+AI_DEFENSE_MODE=api
+AI_DEFENSE_GATEWAY_URL=
+AI_DEFENSE_BASE_URL=
 AI_DEFENSE_MODEL_LABEL=aidefense-demo
+AI_DEFENSE_DEFAULT_RULES=
 
 NIM_API_KEY=$NIM_KEY
 NIM_BASE_URL=https://integrate.api.nvidia.com/v1

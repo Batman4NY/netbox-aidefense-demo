@@ -26,10 +26,19 @@ form.addEventListener('submit', async (e) => {
   let turnEl = appendTurnContainer();
 
   try {
+    // Collect per-turn enabled_rules from the toggle panel.
+    // If ALL rules are checked, pass null = use AI Defense policy default.
+    // If any are unchecked, send the explicit list of enabled ones.
+    const allToggles = document.querySelectorAll('.rule-toggle');
+    const checked = [...document.querySelectorAll('.rule-toggle:checked')];
+    const enabled_rules = (allToggles.length && checked.length < allToggles.length)
+      ? checked.map(c => c.value)
+      : null;
+
     const resp = await fetch('/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text, history: history, session_id: sessionId }),
+      body: JSON.stringify({ message: text, history: history, session_id: sessionId, enabled_rules }),
     });
     if (!resp.ok || !resp.body) throw new Error('chat request failed: ' + resp.status);
 
@@ -164,17 +173,48 @@ function handleEvent(evt, turn) {
       if (d.action === 'allow') {
         addStep(turn, 'allow', `AI Defense ${d.where}-scan → <b>allow</b> <span class="text-slate-500">(${d.latency_ms}ms)</span>`);
       } else {
-        addStep(turn, 'block', `AI Defense ${d.where}-scan → <b>BLOCK</b> · ${d.category || '?'}${d.subcategory ? '/'+d.subcategory : ''} <span class="text-slate-500">(${d.latency_ms}ms)</span>`);
+        const sev = d.severity ? `<span class="sev sev-${d.severity.toLowerCase()}">${d.severity}</span>` : '';
+        const atk = d.attack_technique ? `<span class="atk">${escapeHTML(d.attack_technique)}</span>` : '';
+        const violations = (d.violations || []).map(v => {
+          const ents = (v.entity_types && v.entity_types.length) ? ` <span class="text-slate-500">(${v.entity_types.slice(0,3).map(escapeHTML).join(', ')}${v.entity_types.length>3?'…':''})</span>` : '';
+          return `<div class="ml-5 mt-0.5"><span class="text-slate-400">↳</span> <b>${escapeHTML(v.rule_name)}</b>${ents}</div>`;
+        }).join('');
+        addStep(turn, 'block',
+          `AI Defense ${d.where}-scan → <b>BLOCK</b> ${sev}${atk} <span class="text-slate-500">(${d.latency_ms}ms)</span>${violations}`);
         flashPipe(d.where, true);
       }
       return;
 
-    case 'blocked':
+    case 'blocked': {
+      const violations = (d.violations || []);
+      const sevTag = d.severity ? ` · severity \`${d.severity}\`` : '';
+      const atkTag = d.attack_technique ? ` · technique \`${d.attack_technique}\`` : '';
+
+      let detail = `**Request blocked by Cisco AI Defense** at the **${d.where}** gate.${sevTag}${atkTag}\n\n`;
+      if (violations.length) {
+        detail += `**Rules triggered (${violations.length}):**\n\n`;
+        for (const v of violations) {
+          const ents = v.entity_types && v.entity_types.length
+            ? ` — entities: \`${v.entity_types.join('`, `')}\``
+            : '';
+          detail += `- **${v.rule_name}** (\`${v.classification}\`)${ents}\n`;
+        }
+        detail += `\n`;
+      } else {
+        detail += `- Category: \`${d.category || 'unknown'}\`\n- Subcategory: \`${d.subcategory || 'n/a'}\`\n\n`;
+      }
+      detail += `The ${d.where === 'input' ? 'prompt was prevented from reaching Nemotron' : d.where === 'tool_args' ? 'tool call was prevented from executing against NetBox' : 'response was prevented from reaching the user'}.`;
+
+      const sevBadge = d.severity ? `<span class="sev sev-${d.severity.toLowerCase()}">${d.severity}</span>` : '';
+      const headRules = violations.length
+        ? violations.map(v => escapeHTML(v.rule_name)).join(' · ')
+        : escapeHTML(d.category || '');
       setHeader(turn,
-        `<span class="text-danger">🛑 BLOCKED BY CISCO AI DEFENSE</span> · ${escapeHTML(d.where || '')} · ${escapeHTML(d.category || '')}${d.subcategory ? '/'+escapeHTML(d.subcategory) : ''}`,
+        `<span class="text-danger">🛑 BLOCKED BY CISCO AI DEFENSE</span> · ${escapeHTML(d.where || '')} · ${headRules} ${sevBadge}`,
         'text-danger bg-danger/10');
-      showAnswer(turn, `**Request blocked by Cisco AI Defense** at the **${d.where}** gate.\n\n- Category: \`${d.category || 'unknown'}\`\n- Subcategory: \`${d.subcategory || 'n/a'}\`\n- Message: ${d.message || '(no details)'}\n\nThe ${d.where === 'input' ? 'prompt was prevented from reaching Nemotron' : d.where === 'tool_args' ? 'tool call was prevented from executing against NetBox' : 'response was prevented from reaching the user'}.`);
+      showAnswer(turn, detail);
       return;
+    }
 
     case 'llm_call_start':
       addStep(turn, 'llm', `Nemotron call <span class="text-slate-500 font-mono">(hop ${d.hop})</span>…`);

@@ -90,13 +90,21 @@ async def load_tools() -> list[dict[str, Any]]:
     return TOOLS_CACHE
 
 
-async def ai_defense_scan(content: str, where: str) -> dict[str, Any]:
-    """Returns the scan result dict, or a synthetic 'allow' if the gate is disabled."""
+async def ai_defense_scan(content: str, where: str,
+                          enabled_rules: list[str] | None = None) -> dict[str, Any]:
+    """Returns the scan result dict, or a synthetic 'allow' if the gate is disabled.
+    `enabled_rules` overrides the AI Defense connection's default policy per call —
+    useful for demo-time toggling of which rules apply."""
     if (where == "input" and not GATE_INPUT) or \
        (where == "tool_args" and not GATE_TOOL_ARGS) or \
        (where == "output" and not GATE_OUTPUT):
-        return {"action": "allow", "latency_ms": 0, "message": "gate disabled"}
-    r = await http.post(f"{AI_DEFENSE_MCP_URL}/scan/{where}", json={"content": content})
+        return {"is_safe": True, "action": "allow", "latency_ms": 0,
+                "message": "gate disabled", "violations": [],
+                "severity": None, "attack_technique": None}
+    body: dict[str, Any] = {"content": content}
+    if enabled_rules is not None:
+        body["enabled_rules"] = enabled_rules
+    r = await http.post(f"{AI_DEFENSE_MCP_URL}/scan/{where}", json=body)
     r.raise_for_status()
     return r.json()
 
@@ -133,6 +141,7 @@ class ChatRequest(BaseModel):
     message: str
     history: list[dict[str, Any]] = []
     session_id: str | None = None
+    enabled_rules: list[str] | None = None  # per-turn override of AI Defense policy rules
 
 
 @app.post("/chat")
@@ -147,7 +156,7 @@ async def chat(req: ChatRequest, request: Request):
 
             # ---- GATE 1: input ----
             yield sse("gate_start", {"where": "input", "n": 1, "content": req.message})
-            in_scan = await ai_defense_scan(req.message, "input")
+            in_scan = await ai_defense_scan(req.message, "input", req.enabled_rules)
             yield sse("gate_result", {"where": "input", "n": 1, **in_scan})
             if in_scan.get("action") == "block":
                 yield sse("blocked", {"where": "input", **in_scan})
@@ -206,7 +215,7 @@ async def chat(req: ChatRequest, request: Request):
 
                     # ---- GATE 3: output ----
                     yield sse("gate_start", {"where": "output", "n": 1, "content": final[:200]})
-                    out_scan = await ai_defense_scan(final, "output")
+                    out_scan = await ai_defense_scan(final, "output", req.enabled_rules)
                     yield sse("gate_result", {"where": "output", "n": 1, **out_scan})
                     if out_scan.get("action") == "block":
                         yield sse("blocked", {"where": "output", **out_scan})
@@ -226,7 +235,7 @@ async def chat(req: ChatRequest, request: Request):
                     yield sse("tool_call_proposed", {"hop": hop, "idx": idx, "name": fn_name, "arguments": raw_args})
 
                     yield sse("gate_start", {"where": "tool_args", "n": 2, "content": scan_text})
-                    arg_scan = await ai_defense_scan(scan_text, "tool_args")
+                    arg_scan = await ai_defense_scan(scan_text, "tool_args", req.enabled_rules)
                     yield sse("gate_result", {"where": "tool_args", "n": 2, **arg_scan})
                     if arg_scan.get("action") == "block":
                         yield sse("blocked", {"where": "tool_args", "tool": fn_name, **arg_scan})

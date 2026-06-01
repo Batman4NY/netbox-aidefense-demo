@@ -75,8 +75,12 @@ services:
       context: ../ai-defense-mcp
     environment:
       AI_DEFENSE_API_KEY: ${AI_DEFENSE_API_KEY}
-      AI_DEFENSE_BASE_URL: ${AI_DEFENSE_BASE_URL}
+      AI_DEFENSE_REGION: ${AI_DEFENSE_REGION:-us}
+      AI_DEFENSE_MODE: ${AI_DEFENSE_MODE:-api}
+      AI_DEFENSE_GATEWAY_URL: ${AI_DEFENSE_GATEWAY_URL:-}
+      AI_DEFENSE_BASE_URL: ${AI_DEFENSE_BASE_URL:-}
       AI_DEFENSE_MODEL_LABEL: ${AI_DEFENSE_MODEL_LABEL}
+      AI_DEFENSE_DEFAULT_RULES: ${AI_DEFENSE_DEFAULT_RULES:-}
     networks: [demo]
     restart: unless-stopped
     healthcheck:

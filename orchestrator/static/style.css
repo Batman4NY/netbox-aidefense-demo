@@ -10,6 +10,39 @@
 .bubble-assistant ol { @apply list-decimal; }
 .bubble-assistant p { @apply my-2; }
 
+/* Severity badge — color-coded */
+.sev {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-left: 6px;
+  vertical-align: middle;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+.sev-critical { background: #7f1d1d; color: #fecaca; border: 1px solid #ef4444; }
+.sev-high     { background: #7c2d12; color: #fed7aa; border: 1px solid #ea580c; }
+.sev-medium   { background: #713f12; color: #fde68a; border: 1px solid #f59e0b; }
+.sev-low      { background: #1e3a8a; color: #bfdbfe; border: 1px solid #3b82f6; }
+
+/* Attack-technique label — Cisco-blue accent */
+.atk {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-left: 4px;
+  vertical-align: middle;
+  background: #0d274d;
+  color: #049fd9;
+  border: 1px solid #049fd9;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+
 .pipe-fire { animation: pulse-pipe 0.8s ease-in-out 2; }
 @keyframes pulse-pipe {
   0%, 100% { background-color: #0d274d; }
