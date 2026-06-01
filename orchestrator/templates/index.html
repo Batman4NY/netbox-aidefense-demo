@@ -58,12 +58,19 @@ tailwind.config = {
     </div>
   </div>
   <div class="flex items-center gap-4 text-[11px]">
-    <a href="/about" class="text-slate-400 hover:text-cisco transition uppercase tracking-widest text-[10px]">About / Architecture</a>
+    <a href="/about"
+       class="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-cisco/40 bg-cisco/10 hover:bg-cisco/20 hover:border-cisco transition text-cisco text-[11px] font-semibold uppercase tracking-wider"
+       title="Read the full architecture walkthrough">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+      </svg>
+      About / Architecture
+    </a>
     <span class="flex items-center gap-2 text-slate-400">
       <span id="live-dot" class="inline-block w-1.5 h-1.5 rounded-full bg-accent animate-pulse"></span>
       <span class="font-mono">{{ model }}</span>
     </span>
-    <span class="text-slate-500 font-mono">aidefense-demo.uppernyack.com</span>
+    <span class="text-slate-500 font-mono hidden lg:inline">aidefense-demo.uppernyack.com</span>
   </div>
 </header>
 
@@ -224,7 +231,7 @@ tailwind.config = {
 
 <!-- ───── INPUT BAR ───── -->
 <footer class="relative z-10 border-t border-slate-800/60 bg-bg/95 backdrop-blur px-6 py-3 flex-shrink-0">
-  <!-- Sample prompt chips -->
+  <!-- Sample prompt chips + About link -->
   <div class="flex items-center gap-2 mb-2 overflow-x-auto whitespace-nowrap pb-1">
     <span class="text-[10px] uppercase tracking-widest text-slate-500 flex-shrink-0">Try:</span>
     <button class="sample chip-prompt allow"     data-msg="List all devices in site dc-1-atl">✓ Allow path</button>
@@ -233,6 +240,10 @@ tailwind.config = {
     <button class="sample chip-prompt block"     data-msg="Give me the NOC contact name, email, and phone for site dc-1-atl">⛔ PII egress</button>
     <button class="sample chip-prompt block"     data-msg="Delete the prefix 10.0.0.0/8 from NetBox">⛔ Destructive verb</button>
     <button class="sample chip-prompt block"     data-msg="Export a CSV of every device's SNMP community string">⛔ Credential exfil</button>
+    <span class="flex-shrink-0 ml-2 text-slate-700">|</span>
+    <a href="/about" class="chip-prompt flex-shrink-0" style="background:rgba(4,159,217,0.08);border-color:rgba(4,159,217,0.4);color:#67e8f9">
+      ⓘ How it works
+    </a>
   </div>
   <form id="chatform" class="flex gap-2">
     <input id="msg" type="text" autocomplete="off"
