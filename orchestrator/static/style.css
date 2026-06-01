@@ -1,55 +1,331 @@
-/* Markdown inside assistant bubbles */
-.bubble-assistant table { @apply border-collapse my-2 text-sm; }
-.bubble-assistant th, .bubble-assistant td { @apply border border-slate-700 px-2 py-1; }
-.bubble-assistant th { @apply bg-slate-800/50 text-left font-semibold; }
-.bubble-assistant code { @apply bg-slate-800 px-1 rounded text-ciscoblue text-sm; }
-.bubble-assistant pre { @apply bg-slate-900 p-3 rounded my-2 overflow-x-auto text-sm; }
-.bubble-assistant pre code { @apply bg-transparent text-slate-100 p-0; }
-.bubble-assistant ul, .bubble-assistant ol { @apply pl-5 my-2; }
-.bubble-assistant ul { @apply list-disc; }
-.bubble-assistant ol { @apply list-decimal; }
-.bubble-assistant p { @apply my-2; }
+/* ── Base scrollbar polish ───────────────────────────── */
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: #1f2937; border-radius: 4px; }
+*::-webkit-scrollbar-thumb:hover { background: #374151; }
 
-/* Severity badge — color-coded */
+/* ── SVG flow diagram ─────────────────────────────────── */
+#flow .zone-label {
+  font: 9px/1 'Inter', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  fill: #6b7280;
+  text-transform: uppercase;
+}
+
+#flow .node rect {
+  fill: #0a0e1a;
+  stroke: #1e293b;
+  stroke-width: 1.5;
+  transition: all 0.4s ease;
+}
+
+#flow .node text {
+  pointer-events: none;
+  user-select: none;
+}
+
+#flow .node-icon  { font-size: 22px; }
+#flow .node-label { font: 600 11px 'Inter', sans-serif; fill: #cbd5e1; letter-spacing: 0.02em; }
+#flow .node-sublabel { font: 500 9px 'JetBrains Mono', monospace; fill: #6b7280; letter-spacing: 0.05em; text-transform: uppercase; }
+
+#flow .lat-badge {
+  font: 600 10px 'JetBrains Mono', monospace;
+  fill: #10b981;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+#flow .lat-badge.visible { opacity: 1; }
+#flow .lat-badge.blocked { fill: #ef4444; }
+
+#flow .tool-badge {
+  font: 500 10px 'JetBrains Mono', monospace;
+  fill: #049fd9;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+#flow .tool-badge.visible { opacity: 1; }
+
+/* Edges */
+#flow .edge {
+  stroke: #1e293b;
+  stroke-width: 2;
+  fill: none;
+  transition: all 0.3s ease;
+}
+
+#flow .edge.active {
+  stroke: #049fd9;
+  stroke-width: 2.5;
+  stroke-dasharray: 6 6;
+  animation: dash-flow 0.6s linear infinite;
+  filter: drop-shadow(0 0 6px #049fd9);
+}
+#flow .edge.complete {
+  stroke: #049fd9;
+  stroke-width: 2.5;
+  stroke-dasharray: none;
+  filter: drop-shadow(0 0 3px #049fd9aa);
+}
+#flow .edge.allow {
+  stroke: #10b981;
+  filter: drop-shadow(0 0 4px #10b98199);
+}
+#flow .edge.block {
+  stroke: #ef4444;
+  stroke-width: 2.5;
+  filter: drop-shadow(0 0 6px #ef4444);
+  stroke-dasharray: 4 4;
+  animation: dash-flow 0.4s linear infinite;
+}
+
+@keyframes dash-flow {
+  to { stroke-dashoffset: -12; }
+}
+
+/* Node states */
+#flow .node.active rect {
+  stroke: #049fd9;
+  stroke-width: 2.5;
+  filter: drop-shadow(0 0 12px #049fd9);
+  animation: node-pulse 1s ease-in-out infinite;
+}
+@keyframes node-pulse {
+  0%, 100% { stroke-opacity: 1; }
+  50%      { stroke-opacity: 0.5; }
+}
+
+#flow .node.allow rect {
+  stroke: #10b981;
+  stroke-width: 2.5;
+  filter: drop-shadow(0 0 10px #10b98180);
+}
+#flow .node.block rect {
+  stroke: #ef4444;
+  stroke-width: 3;
+  filter: drop-shadow(0 0 14px #ef4444);
+  fill: #2a0a0a;
+  animation: block-shake 0.5s ease-out;
+}
+@keyframes block-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-3px); }
+  40% { transform: translateX(3px); }
+  60% { transform: translateX(-2px); }
+  80% { transform: translateX(2px); }
+}
+
+#flow .node.dim rect {
+  opacity: 0.35;
+}
+#flow .node.dim text {
+  opacity: 0.4;
+}
+
+/* ── Chip-style sample prompts ───────────────────────── */
+.chip-prompt {
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  border: 1px solid;
+  transition: all 0.2s;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.chip-prompt.allow {
+  background: rgba(16,185,129,0.08);
+  border-color: rgba(16,185,129,0.3);
+  color: #6ee7b7;
+}
+.chip-prompt.allow:hover {
+  background: rgba(16,185,129,0.18);
+  border-color: rgba(16,185,129,0.6);
+  box-shadow: 0 0 10px rgba(16,185,129,0.25);
+}
+.chip-prompt.block {
+  background: rgba(239,68,68,0.08);
+  border-color: rgba(239,68,68,0.3);
+  color: #fca5a5;
+}
+.chip-prompt.block:hover {
+  background: rgba(239,68,68,0.18);
+  border-color: rgba(239,68,68,0.6);
+  box-shadow: 0 0 10px rgba(239,68,68,0.25);
+}
+
+/* ── Event stream pills ──────────────────────────────── */
+.evt {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border-left: 2px solid #1e293b;
+  background: rgba(255,255,255,0.02);
+  transition: background 0.2s;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.evt-time {
+  color: #475569;
+  font-size: 10px;
+  flex-shrink: 0;
+  width: 38px;
+}
+.evt-icon { flex-shrink: 0; width: 16px; }
+.evt-body { flex: 1; color: #cbd5e1; word-break: break-word; }
+
+.evt.gate-allow { border-left-color: #10b981; }
+.evt.gate-allow .evt-icon { color: #10b981; }
+.evt.gate-block { border-left-color: #ef4444; background: rgba(239,68,68,0.05); }
+.evt.gate-block .evt-icon { color: #ef4444; }
+.evt.llm     { border-left-color: #a78bfa; }
+.evt.llm     .evt-icon { color: #a78bfa; }
+.evt.tool    { border-left-color: #049fd9; }
+.evt.tool    .evt-icon { color: #049fd9; }
+.evt.error   { border-left-color: #f59e0b; }
+.evt.error   .evt-icon { color: #f59e0b; }
+.evt.netbox  { border-left-color: #6ee7b7; }
+.evt.netbox  .evt-icon { color: #6ee7b7; }
+
+.evt-sub {
+  font-size: 10px;
+  color: #64748b;
+  margin-top: 2px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* ── Severity / attack badges (kept from prior) ──────── */
 .sev {
   display: inline-block;
-  font-size: 9px;
-  font-weight: 700;
+  font-size: 9px; font-weight: 700;
   letter-spacing: 0.05em;
-  padding: 1px 6px;
-  border-radius: 4px;
-  margin-left: 6px;
-  vertical-align: middle;
+  padding: 1px 6px; border-radius: 4px;
+  margin-left: 6px; vertical-align: middle;
   font-family: 'JetBrains Mono', ui-monospace, monospace;
 }
 .sev-critical { background: #7f1d1d; color: #fecaca; border: 1px solid #ef4444; }
 .sev-high     { background: #7c2d12; color: #fed7aa; border: 1px solid #ea580c; }
 .sev-medium   { background: #713f12; color: #fde68a; border: 1px solid #f59e0b; }
 .sev-low      { background: #1e3a8a; color: #bfdbfe; border: 1px solid #3b82f6; }
-
-/* Attack-technique label — Cisco-blue accent */
 .atk {
   display: inline-block;
-  font-size: 9px;
-  font-weight: 600;
+  font-size: 9px; font-weight: 600;
   letter-spacing: 0.04em;
-  padding: 1px 6px;
-  border-radius: 4px;
-  margin-left: 4px;
-  vertical-align: middle;
-  background: #0d274d;
-  color: #049fd9;
+  padding: 1px 6px; border-radius: 4px;
+  margin-left: 4px; vertical-align: middle;
+  background: #0d274d; color: #049fd9;
   border: 1px solid #049fd9;
   font-family: 'JetBrains Mono', ui-monospace, monospace;
 }
 
-.pipe-fire { animation: pulse-pipe 0.8s ease-in-out 2; }
-@keyframes pulse-pipe {
-  0%, 100% { background-color: #0d274d; }
-  50% { background-color: #049fd9; color: white; }
+/* ── Result pane styling ─────────────────────────────── */
+#result-pane h1, #result-pane h2, #result-pane h3 { color: #fff; margin: 0.4em 0 0.3em; font-weight: 600; }
+#result-pane h2 { font-size: 18px; }
+#result-pane h3 { font-size: 14px; }
+#result-pane p  { margin: 0.5em 0; color: #cbd5e1; font-size: 13px; line-height: 1.55; }
+#result-pane ul, #result-pane ol { padding-left: 22px; margin: 0.5em 0; font-size: 13px; }
+#result-pane code {
+  background: #0a0e1a;
+  color: #22d3ee;
+  padding: 1px 6px; border-radius: 4px;
+  font-size: 12px;
+  border: 1px solid #1e293b;
 }
-.pipe-block { animation: pulse-block 1.2s ease-in-out 2; }
-@keyframes pulse-block {
-  0%, 100% { background-color: #0d274d; }
-  50% { background-color: #ef4444; color: white; border-color: #ef4444; }
+#result-pane pre {
+  background: #04050a; padding: 12px;
+  border-radius: 6px; margin: 0.6em 0;
+  border: 1px solid #1e293b;
+  overflow-x: auto;
+}
+#result-pane pre code { border: none; padding: 0; background: transparent; color: #cbd5e1; }
+#result-pane table {
+  border-collapse: collapse;
+  margin: 0.7em 0;
+  font-size: 12px;
+  width: 100%;
+}
+#result-pane th, #result-pane td {
+  border: 1px solid #1e293b;
+  padding: 6px 10px;
+  text-align: left;
+}
+#result-pane th {
+  background: rgba(4,159,217,0.08);
+  color: #049fd9;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  font-size: 11px;
+}
+#result-pane tr:nth-child(even) td { background: rgba(255,255,255,0.015); }
+#result-pane strong { color: #fff; }
+#result-pane a { color: #049fd9; }
+
+/* Result-pane block-verdict banner */
+.verdict {
+  padding: 14px 18px;
+  border-radius: 10px;
+  margin-bottom: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 15px;
+  letter-spacing: 0.01em;
+}
+.verdict-block {
+  background: linear-gradient(135deg, rgba(239,68,68,0.18), rgba(239,68,68,0.06));
+  border: 1px solid #ef4444;
+  color: #fecaca;
+  box-shadow: 0 0 30px rgba(239,68,68,0.15);
+}
+.verdict-allow {
+  background: linear-gradient(135deg, rgba(16,185,129,0.15), rgba(16,185,129,0.05));
+  border: 1px solid #10b981;
+  color: #a7f3d0;
+}
+.verdict-thinking {
+  background: linear-gradient(135deg, rgba(4,159,217,0.15), rgba(4,159,217,0.05));
+  border: 1px solid #049fd9;
+  color: #bae6fd;
+}
+.verdict-icon { font-size: 26px; line-height: 1; }
+.verdict-title { font-size: 16px; }
+.verdict-sub { font-size: 11px; opacity: 0.85; font-weight: 400; margin-top: 2px; }
+
+/* Violation card list */
+.vio-list { margin: 8px 0 0; padding: 0; list-style: none; }
+.vio-item {
+  background: rgba(239,68,68,0.06);
+  border: 1px solid rgba(239,68,68,0.25);
+  border-left: 3px solid #ef4444;
+  padding: 8px 12px;
+  margin-bottom: 6px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+.vio-name { color: #fca5a5; font-weight: 600; }
+.vio-class { color: #6b7280; font-size: 10px; margin-left: 8px; font-family: 'JetBrains Mono', monospace; text-transform: uppercase; }
+.vio-ents { color: #94a3b8; font-size: 11px; margin-top: 4px; }
+.vio-ent {
+  display: inline-block;
+  background: rgba(239,68,68,0.15);
+  padding: 1px 6px;
+  border-radius: 3px;
+  margin: 2px 4px 2px 0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: #fda4af;
+}
+
+/* User echo in result pane */
+.user-echo {
+  font-family: 'JetBrains Mono', monospace;
+  background: rgba(4,159,217,0.08);
+  border-left: 3px solid #049fd9;
+  padding: 8px 12px;
+  border-radius: 6px;
+  color: #bae6fd;
+  font-size: 12px;
+  margin-bottom: 12px;
 }
