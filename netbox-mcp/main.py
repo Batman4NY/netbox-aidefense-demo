@@ -54,12 +54,13 @@ TOOLS_SPEC: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "netbox_list_devices",
-            "description": "List network devices, optionally filtered by site and/or role. Returns name, model, status, primary IP. Note: NetBox uses 'role' for the device's function — switches, routers, and firewalls are device TYPES, not roles. To list 'switches' just filter by site (every returned device IS a switch unless its role is wireless/server/firewall).",
+            "description": "List network devices, optionally filtered by site / role / model family. Returns name, model, status, primary IP.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "site": {"type": "string", "description": "Site slug. Available: dc-1-atl, dc-2-rtp, branch-nyc, branch-sjc, branch-sfo, branch-ams"},
-                    "role": {"type": "string", "enum": ["core", "distribution", "access", "edge", "wireless", "spine", "leaf", "firewall", "server"], "description": "Device functional role. ONLY these exact values are valid."},
+                    "role": {"type": "string", "enum": ["core", "distribution", "access", "edge", "wireless", "spine", "leaf", "firewall", "server"], "description": "Device functional role."},
+                    "model_contains": {"type": "string", "description": "Substring of model name (e.g. 'Nexus' for all Nexus 9000, 'Catalyst' for all Catalysts, 'Meraki', 'UCS', 'ASR', 'Secure Firewall'). Case-insensitive. Use this for product-family questions."},
                     "limit": {"type": "integer", "default": 25, "minimum": 1, "maximum": 100},
                 },
             },
@@ -266,12 +267,21 @@ async def t_search(query: str) -> dict[str, Any]:
     return hits
 
 
-async def t_list_devices(site: str | None = None, role: str | None = None, limit: int = 25) -> dict[str, Any]:
+async def t_list_devices(site: str | None = None, role: str | None = None,
+                         model_contains: str | None = None, limit: int = 25) -> dict[str, Any]:
     params: dict[str, Any] = {"limit": limit}
     if site:
         params["site"] = site
     if role:
         params["role"] = role
+    if model_contains:
+        # NetBox 4.x doesn't expose device_type__model__ic on /devices/, but we
+        # can two-step: find device-types whose model matches, then filter devices.
+        dt_resp = await _get("/api/dcim/device-types/", {"q": model_contains, "limit": 100})
+        dt_ids = [str(x["id"]) for x in dt_resp.get("results", [])]
+        if not dt_ids:
+            return {"count": 0, "devices": [], "note": f"No device types match {model_contains!r}"}
+        params["device_type_id"] = dt_ids
     data = await _get("/api/dcim/devices/", params)
     return {
         "count": data.get("count", 0),

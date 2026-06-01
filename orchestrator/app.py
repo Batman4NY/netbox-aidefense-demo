@@ -59,7 +59,7 @@ CRITICAL VOCABULARY (NetBox-specific):
 - "role" = the device's functional role: ONLY 'core', 'distribution', 'access', 'edge', 'wireless', 'spine', 'leaf', 'firewall', 'server'.
 - "switches" and "routers" are device TYPES, not roles. Do NOT pass them as the `role` parameter.
 - "firewalls" → role='firewall'. "APs" / "wireless" → role='wireless'. "edge routers" / "SD-WAN" → role='edge'.
-- "Nexus" / "Catalyst" / "Meraki" / "UCS" are MODEL families — list devices by site, then filter by model name in the response.
+- "Nexus" / "Catalyst" / "Meraki" / "UCS" / "ASR" / "Secure Firewall" are MODEL families — use `netbox_list_devices(model_contains="Nexus")` etc. Do NOT iterate sites manually.
 - Available site slugs: dc-1-atl (Atlanta DC), dc-2-rtp (RTP DR), branch-nyc (NYC HQ), branch-sfo (San Francisco), branch-sjc (San Jose), branch-ams (Amsterdam).
 
 When asked about infrastructure:
