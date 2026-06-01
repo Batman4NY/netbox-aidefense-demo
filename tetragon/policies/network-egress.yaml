@@ -1,0 +1,18 @@
+# Tetragon TracingPolicy — capture every outbound TCP connect from any process
+# on the host. Each tool call from netbox-mcp → NetBox, orchestrator → NIM,
+# ai-defense-mcp → Cisco AI Defense — all surface here as kernel-level events.
+#
+# This is the "Cisco-on-Cisco" runtime-layer telemetry that pairs with the
+# AI Defense application-layer gating: same events, two independent observation
+# planes. Defense-in-depth made visible.
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: "tcp-connect"
+spec:
+  kprobes:
+    - call: "tcp_connect"
+      syscall: false
+      args:
+        - index: 0
+          type: "sock"

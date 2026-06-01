@@ -180,6 +180,35 @@ services:
       timeout: 5s
       retries: 5
 
+  # ── Tetragon (Cisco/Isovalent eBPF runtime observability) ───────────────────
+  # Runs at host scope — privileged container, host PID namespace, host kernel
+  # access. Emits one JSON event per kprobe/tracepoint hit to a shared volume
+  # that the orchestrator tails for the UI's "runtime events" panel.
+  # Cisco-on-Cisco: AI Defense at the model boundary, Tetragon at the kernel.
+  tetragon:
+    image: quay.io/cilium/tetragon:v1.7.0
+    container_name: aidefense-demo-tetragon
+    privileged: true
+    pid: host
+    network_mode: host
+    cap_add: [SYS_ADMIN]
+    volumes:
+      - /sys/kernel/btf:/var/lib/tetragon/btf:ro
+      - /sys/fs/bpf:/sys/fs/bpf:rw
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+      - /proc:/procHost:ro
+      - ../tetragon/policies:/etc/tetragon/tetragon.tp.d:ro
+      - tetragon_logs:/var/log/tetragon
+    command:
+      - /usr/bin/tetragon
+      - --export-filename=/var/log/tetragon/tetragon.log
+      - --export-allowlist={"event_set":["PROCESS_EXEC","PROCESS_KPROBE","PROCESS_TRACEPOINT"]}
+      - --tracing-policy-dir=/etc/tetragon/tetragon.tp.d
+      - --export-file-rotation-interval=24h
+      - --export-file-max-size-mb=50
+      - --export-file-max-backups=3
+    restart: unless-stopped
+
   seed:
     build:
       context: ../seed
@@ -203,3 +232,4 @@ volumes:
   netbox_media:
   netbox_reports:
   netbox_scripts:
+  tetragon_logs:        # JSONL event stream — read by the orchestrator
