@@ -13,3 +13,6 @@ netbox_media/
 netbox_reports/
 netbox_scripts/
 .DS_Store
+
+# LibreOffice / OpenOffice lock files
+.~lock.*#
