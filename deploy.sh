@@ -42,7 +42,7 @@ ssh_cmd() { ssh $SSH_OPTS "$REMOTE_USER@$REMOTE_HOST" "$@"; }
 export BAO_ADDR="${BAO_ADDR:-https://vault.uppernyack.com}"
 if ! bao token lookup >/dev/null 2>&1; then
   echo "OpenBao session not active. Logging in..."
-  bao login -method=userpass username=fabian
+  bao login -method=userpass username="${BAO_USER:-<your-username>}"
 fi
 
 # ---- Subcommands that don't need secrets ----
