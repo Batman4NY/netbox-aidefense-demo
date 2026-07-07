@@ -1,5 +1,9 @@
 # NetBox + Nemotron + Cisco AI Defense — Customer Demo
 
+> [!IMPORTANT]
+> **Personal project — not Cisco-official.**
+> This is a home lab demo built by a Cisco employee on their own time. It uses **publicly available** Cisco AI Defense APIs and Cisco-published integration patterns. **Not affiliated with, endorsed by, sponsored by, or representing Cisco Systems, Inc.** Nothing here should be construed as an official Cisco reference, product statement, or roadmap.
+
 Live URL: https://aidefense-demo.uppernyack.com
 
 A chatbot demo that mirrors a real customer architecture:
